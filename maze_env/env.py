@@ -15,6 +15,7 @@ from gymnasium import spaces
 
 from .config import EnvConfig
 from .generator import WALL, generate_maze, pick_start_and_exit
+from .pathfinding import distance_map
 from .rng import StableRandom
 
 # Eylemler
@@ -91,6 +92,8 @@ class MazeEnv(gym.Env):
         self._pos = start
         self._start = start
         self._shortest = shortest
+        # Yalnız "closer" ödülü için; ajana verilmez
+        self._dist = distance_map(grid, exit_pos) if self.config.rewards.closer else None
 
         # Pencereyi dilimle almak için r kadar duvarla çevrilmiş kopyalar
         tiles = np.pad(grid.astype(np.int8), r, constant_values=TILE_WALL)
@@ -125,6 +128,9 @@ class MazeEnv(gym.Env):
             self._wall_hits += 1
             reward += rw.wall
         else:
+            if self._dist is not None:
+                change = int(self._dist[self._pos]) - int(self._dist[ny, nx])  # +1 yaklaştı, -1 uzaklaştı
+                reward += rw.closer * change
             self._pos = (ny, nx)
             if not self._visited_padded[ny + r, nx + r]:
                 self._visited_padded[ny + r, nx + r] = 1

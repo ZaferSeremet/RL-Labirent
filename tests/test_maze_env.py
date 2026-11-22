@@ -377,6 +377,52 @@ def test_rewards_all_components() -> None:
     assert r3 == pytest.approx(rewards.step + rewards.wall + rewards.timeout)
 
 
+def test_closer_reward_follows_path_distance() -> None:
+    from maze_env.pathfinding import distance_map
+
+    assert RewardConfig().closer == pytest.approx(0.0)
+    rewards = RewardConfig(step=0.0, wall=0.0, exit=0.0, new_tile=0.0, timeout=0.0, closer=0.5)
+    env = MazeEnv(maze_size=6, rewards=rewards)
+    for seed in range(5):
+        env.reset(seed=seed)
+        rs = env.get_render_state()
+        grid, exit_pos = rs["grid"], rs["exit"]
+        dist = distance_map(grid, exit_pos)
+        assert dist[rs["start"]] == env.reset(seed=seed)[1]["shortest_path"]
+
+        path = bfs_shortest_path_actions(grid, rs["start"], exit_pos)
+        # İlk adım: yaklaşma +0.5; geri dönüş: uzaklaşma -0.5; duvar: 0
+        _, r1, *_ = env.step(path[0])
+        assert r1 == pytest.approx(0.5)
+        _, r2, *_ = env.step((path[0] + 2) % 4)
+        assert r2 == pytest.approx(-0.5)
+        pos = env.get_render_state()["agent"]
+        wall_a = next(a for a, (dr, dc) in ACTION_DELTAS.items() if grid[pos[0] + dr, pos[1] + dc] != 0)
+        _, r3, *_ = env.step(wall_a)
+        assert r3 == pytest.approx(0.0)
+        # En kısa yolu yürüyünce toplam = closer x başlangıç mesafesi
+        total = sum(env.step(a)[1] for a in path)
+        assert total == pytest.approx(0.5 * len(path))
+
+
+def test_closer_reward_cannot_be_farmed_by_random_walk() -> None:
+    rewards = RewardConfig(step=0.0, wall=0.0, exit=0.0, new_tile=0.0, timeout=0.0, closer=1.0)
+    env = MazeEnv(maze_size=5, rewards=rewards)
+    _, info = env.reset(seed=7)
+    from maze_env.pathfinding import distance_map
+
+    rs = env.get_render_state()
+    dist = distance_map(rs["grid"], rs["exit"])
+    rng = np.random.default_rng(0)
+    total, done = 0.0, False
+    while not done:
+        _, r, term, trunc, _ = env.step(int(rng.integers(4)))
+        total += r
+        done = term or trunc
+    end = env.get_render_state()["agent"]
+    assert total == pytest.approx(info["shortest_path"] - dist[end])
+
+
 # 6. Bolum sonu, hatalar ve varsayilan max_steps
 def test_episode_termination_truncation_and_errors() -> None:
     # Reset oncesi step() RuntimeError

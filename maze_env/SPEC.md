@@ -38,8 +38,15 @@ Geçersiz eylem `ValueError`; `reset()`'ten önce ya da bölüm bittikten sonra 
 | `exit` | +5.0 | Çıkış karesine girince |
 | `new_tile` | 0.0 | İlk kez girilen kareye girince (çıkış dahil) |
 | `timeout` | 0.0 | Adım limiti dolduğu adımda |
+| `closer` | 0.0 | Ajan bir kareye geçince: çıkışa labirent içi yol mesafesi 1 azaldıysa `+closer`, 1 arttıysa `-closer`. Duvara çarpmada 0 |
 
 Bir adımın ödülü uygun olanların toplamıdır.
+
+`closer` (çıkışa yaklaşma) notları:
+- Mesafe kuş uçuşu değil, duvarlar dolaşılarak gidilen en kısa yoldur (BFS). Manhattan mesafesi labirentte yanıltır: çıkışa kuş uçuşu yaklaşan yol çıkmaz sokak olabilir.
+- Simetrik olduğu için ileri-geri giderek ödül toplanamaz: bir bölümde toplanan `closer` ödülü tam olarak `closer x (başlangıç mesafesi - son mesafe)`.
+- Mesafe ajanın gözlemine girmez; ajan çıkışın yerini yine bilmez, yalnız ödülden dolaylı bir işaret alır.
+- Döngüsüz labirentte her geçiş mesafeyi tam 1 değiştirir; bu yüzden işaret güçlüdür. Deneyde "bir şeyi değiştir" varyasyonu olarak kullanılabilir.
 
 ## Bölüm sonu
 - `terminated = True`: ajan çıkış karesine girdi.

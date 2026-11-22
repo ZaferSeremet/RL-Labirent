@@ -37,6 +37,7 @@ _REWARD_META: tuple[tuple[str, str, float, float, float], ...] = (
     ("exit", "Çıkış ödülü (exit)", -100.0, 1000.0, 0.5),
     ("new_tile", "Yeni kare (new_tile)", -100.0, 100.0, 0.01),
     ("timeout", "Süre aşımı (timeout)", -100.0, 100.0, 0.05),
+    ("closer", "Çıkışa yaklaşma (closer)", -100.0, 100.0, 0.01),
 )
 
 

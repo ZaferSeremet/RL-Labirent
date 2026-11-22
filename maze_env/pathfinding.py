@@ -26,3 +26,19 @@ def bfs_distance(grid: np.ndarray, start: tuple[int, int], goal: tuple[int, int]
                 dist[(ny, nx)] = dist[(y, x)] + 1
                 q.append((ny, nx))
     return -1
+
+
+def distance_map(grid: np.ndarray, goal: tuple[int, int]) -> np.ndarray:
+    """Her boş kareden goal'e en az adım sayısı (int32). Duvar ve ulaşılamayan kare: -1."""
+    h, w = grid.shape
+    dist = np.full((h, w), -1, dtype=np.int32)
+    dist[goal] = 0
+    q = deque([goal])
+    while q:
+        y, x = q.popleft()
+        for dy, dx in _DIRS:
+            ny, nx = y + dy, x + dx
+            if 0 <= ny < h and 0 <= nx < w and grid[ny, nx] == 0 and dist[ny, nx] < 0:
+                dist[ny, nx] = dist[y, x] + 1
+                q.append((ny, nx))
+    return dist

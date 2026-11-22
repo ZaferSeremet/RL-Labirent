@@ -15,6 +15,10 @@ class RewardConfig:
     exit: float = 5.0  # çıkışa ulaşma
     new_tile: float = 0.0  # ilk kez girilen kare (keşif bonusu, varsayılan kapalı)
     timeout: float = 0.0  # adım limiti dolunca ek ceza (varsayılan yok)
+    # Çıkışa yaklaşma: labirent içi yol mesafesi 1 azalınca +closer, 1 artınca -closer.
+    # Simetrik olduğu için ileri-geri giderek ödül toplanamaz (bölüm toplamı
+    # closer x (başlangıç mesafesi - son mesafe)). Varsayılan kapalı.
+    closer: float = 0.0
 
 
 @dataclass

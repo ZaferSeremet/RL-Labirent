@@ -23,7 +23,16 @@ Ayrıntılı tanım: [maze_env/SPEC.md](maze_env/SPEC.md).
 
 Gerekenler: **Python 3.11 ya da daha yeni** (3.11 ve 3.14'te denendi). Kurulum ilk seferde ~200 MB paket indirir.
 
-Kod sana `RL-Labirent_<tarih>_<sürüm>.zip` olarak gelir. Zip'i istediğin yere çıkar; içinden çıkan `RL-Labirent` klasörü proje klasörüdür. Hangi sürümü kullandığın `SURUM.txt` dosyasında yazar.
+Kodu üç yoldan alabilirsin:
+- **Git ile (önerilen, güncellemesi tek komut):**
+  ```bash
+  git clone https://github.com/ZaferSeremet/RL-Labirent.git
+  ```
+  Yeni sürüm çıkınca proje klasöründe `git pull`. Kendi `agents/<algoritman>.py` dosyan ve `results/` klasörün bundan etkilenmez.
+- **GitHub'dan zip:** https://github.com/ZaferSeremet/RL-Labirent → yeşil **Code** düğmesi → **Download ZIP**.
+- **Gönderilen zip:** `RL-Labirent_<tarih>_<sürüm>.zip`; hangi sürüm olduğu içindeki `SURUM.txt`'de yazar.
+
+Zip ile aldıysan istediğin yere çıkar; içinden çıkan klasör proje klasörüdür.
 
 **Windows:** proje klasöründe `kurulum.bat` dosyasına çift tıkla. Ya da terminalde:
 
@@ -116,11 +125,11 @@ Sonuçlar kendi bilgisayarında `results/` klasöründe durur.
 
 ### Yeni sürüm gelince
 
-Ortamda düzeltme olursa yeni bir zip gelir. Eskisinin üstüne yazma:
-1. Yeni zip'i **ayrı bir klasöre** çıkar.
+Git ile aldıysan proje klasöründe `git pull` yapman yeterli. Zip ile aldıysan eskisinin üstüne yazma:
+1. Yeni zip'i (GitHub'dan ya da gönderilen) **ayrı bir klasöre** çıkar.
 2. Eski klasörden yenisine kendi dosyalarını taşı: `agents/<algoritman>.py` ve `results/` klasöründeki çalışmaların.
 3. Yeni klasörde `kurulum.bat`'ı çalıştır (paketler değişmediyse hızlı biter).
-4. Yeni sürümün `SURUM.txt`'sinde ya da gelen mesajda **test sonuçlarını etkileyen bir değişiklik** yazıyorsa, o sürümle tekrar test et; farklı sürümlerin sonuçlarını karşılaştırma.
+4. Değişiklik notunda (GitHub'daki commit mesajı ya da gelen mesaj) **test sonuçlarını etkileyen bir değişiklik** yazıyorsa, o sürümle tekrar test et; farklı sürümlerin sonuçlarını karşılaştırma.
 
 ## 6. Kurallar
 

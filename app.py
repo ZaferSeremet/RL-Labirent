@@ -16,12 +16,13 @@ def main() -> int:
 
     from gui.main_window import MainWindow
     from gui.notify import app_icon
+    from gui.theme import apply_light_theme
 
     app = QApplication.instance()
     if app is None:
         app = QApplication(sys.argv)
     app.setApplicationName("RL Labirent")
-    app.setStyle("Fusion")
+    apply_light_theme(app)  # Windows karanlık modda da okunaklı kalsın
     app.setWindowIcon(app_icon())
 
     window = MainWindow()

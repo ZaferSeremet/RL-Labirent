@@ -12,6 +12,7 @@ from .notify import Notifier, app_icon
 from .results_tab import ResultsTab
 from .settings_tab import SettingsTab
 from .test_tab import TestTab
+from .theme import apply_light_theme
 from .train_tab import TrainTab
 
 TAB_TITLES: tuple[str, ...] = ("Ayarlar", "Eğitim", "Test", "Sonuçlar", "Oyna")
@@ -143,6 +144,7 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(app_icon(self))
         self.resize(1400, 850)
         self.setMinimumSize(920, 620)
+        apply_light_theme()  # app.py dışından açılsa da (testler) aynı tema
         self.setStyleSheet(APP_STYLESHEET)
 
         self.statusBar().showMessage("Hazır")

@@ -1,0 +1,23 @@
+{
+  "_aciklama": "Bütün ekibin aynı kullanması gereken ayarlar. Test seed'leri değiştirilirse herkesin sonuçları geçersiz olur.",
+  "env": {
+    "maze_size": 8,
+    "view_radius": 1,
+    "max_steps": null,
+    "rewards": {
+      "step": -0.01,
+      "wall": -0.05,
+      "exit": 5.0,
+      "new_tile": 0.0,
+      "timeout": 0.0
+    }
+  },
+  "test": {
+    "normal": { "maze_size": 8, "seeds": [10000, 10099] },
+    "buyuk": { "maze_size": 12, "seeds": [20000, 20099] }
+  },
+  "egitim": {
+    "seed_baslangic": 0,
+    "tekrar_sayisi": 3
+  }
+}

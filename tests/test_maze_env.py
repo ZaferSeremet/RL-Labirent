@@ -676,3 +676,19 @@ def test_env_config_roundtrip_validation_and_overrides() -> None:
     assert env.max_steps == 40
     assert info["max_steps"] == 40
     assert env.observation_space == gym.spaces.Discrete(11520)
+
+
+# Regresyon: simple modda çıkışa ulaşılan adım çökmemeli (ajan çıkışın üstünde, yön 0)
+@pytest.mark.parametrize("view_radius", [1, 2])
+@pytest.mark.parametrize("seed", [0, 5, 10000])
+def test_simple_observation_until_exit(view_radius: int, seed: int) -> None:
+    env = MazeEnv(maze_size=6, view_radius=view_radius, obs_mode="simple")
+    obs, _ = env.reset(seed=seed)
+    rs = env.get_render_state()
+    path = bfs_shortest_path_actions(rs["grid"], rs["start"], rs["exit"])
+    for i, a in enumerate(path):
+        obs, _, term, trunc, info = env.step(a)
+        assert env.observation_space.contains(obs)
+        assert decode_simple_state(obs) == expected_simple_decoded(env.get_render_state())
+        assert term == (i == len(path) - 1)
+    assert info["success"] and decode_simple_state(obs)["exit_dir"] == 0

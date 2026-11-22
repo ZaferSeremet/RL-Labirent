@@ -3,6 +3,6 @@ numpy>=2.0
 gymnasium>=1.0
 pytest>=8.0
 
-# Faz 4-5 (arayüz ve grafikler) — GUI fazında kurulacak
-# PySide6>=6.10
-# matplotlib>=3.9
+# Faz 4-5 (arayüz ve grafikler) (yalnız Essentials yeterli)
+PySide6-Essentials>=6.10
+matplotlib>=3.9

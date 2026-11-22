@@ -60,7 +60,7 @@ Haritalar satır satır düzleştirilir (sol üstten başlayarak).
 
 ### `obs_mode="simple"`: `Discrete(11520)`, tablo yöntemleri için tek tam sayı
 - 4 komşu (yukarı, sağ, aşağı, sol), her biri: `0` boş ve girilmemiş, `1` boş ve girilmiş, `2` duvar, `3` çıkış
-- Çıkış yönü: `0` pencerede görünmüyor, `1..8` = K, KD, D, GD, G, GB, B, KB (ajana göre; satır yukarı = K)
+- Çıkış yönü: `0` pencerede görünmüyor, `1..8` = K, KD, D, GD, G, GB, B, KB (ajana göre; satır yukarı = K). Ajan çıkışın üstündeyken (yalnız `terminated` adımının gözlemi) `0`.
 - Son eylem: `0-4`
 
 Kodlama: `((((up*4 + right)*4 + down)*4 + left)*9 + exit_dir)*5 + last_action`.

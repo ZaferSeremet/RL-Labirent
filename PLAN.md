@@ -1,6 +1,21 @@
 # Ortam + Uygulama Planı (taslak)
 
-Durum: **Faz 0 ve Faz 1 bitti (2026-11-22).** Sıradaki: Faz 2. Deney akışı için bkz. [DENEY_AKISI.md](DENEY_AKISI.md).
+Durum: **Faz 0-5 bitti (2026-11-22).** Sıradaki: Faz 6 (ekibe dağıtım: README). Deney akışı için bkz. [DENEY_AKISI.md](DENEY_AKISI.md).
+
+## Faz 3-5 sonucu
+- Uygulamayı başlat: `.venv\Scripts\python app.py` (sekmeler: Ayarlar, Eğitim, Test, Sonuçlar, Oyna).
+- Motor: `engine/trainer.py` (eğitim, 5 eşit aralıklı + canlı kayıt, tekrar sayısı, durdurma), `engine/tester.py` (normal + büyük test, baseline'lar dahil, test bölümünü tekrar izleme), `engine/background.py` (ayrı süreç). Sözleşme: [engine/CONTRACT.md](engine/CONTRACT.md).
+- Analiz ve rapor: `engine/analysis.py` (özet, öğrenme eğrisi, baseline, genelleme, karşılaştırma grafikleri), `engine/report.py` (zip paylaşma, içe aktarma, HTML + Markdown rapor).
+- Arayüz: `gui/` (sözleşme [gui/CONTRACT.md](gui/CONTRACT.md)).
+- 94 test geçiyor (~15 sn). Uçtan uca denendi: arka planda eğitim → test → özet → grafikler → rapor → zip → içe aktarma.
+- Düzeltilen hata: Windows'ta arayüz `kayitlar/son.json`'u okurken eğitim süreci aynı dosyayı yazamayıp çöküyordu; yazma artık yeniden deniyor, canlı kayıt yazılamazsa eğitim düşmüyor.
+
+## Faz 2 sonucu
+- Ajan arayüzü `agents/base.py` (`Agent`, `EnvSpec`), şablon `agents/ornek_ajan.py`, kılavuz [agents/README.md](agents/README.md).
+- Baseline'lar `baselines/`: `random`, `sag_el` (hafızasız; bakış yönünü gözlemdeki son eylemden okur).
+- Motorun başlangıcı `engine/`: ortak ayar okuma (`settings.py`), ajanları otomatik bulma (`registry.py`), tek bölüm koşturma + izleme kaydı (`episode.py`).
+- Arkadaşların deneme aracı: `.venv\Scripts\python tools\ajan_dene.py --agent <ad> --episodes 2000 [--buyuk]`
+- 45 test geçiyor. Faz 2 sırasında ortamda bir hata bulundu ve düzeltildi: `simple` modda çıkışa ulaşılan adımda çöküyordu (regresyon testi eklendi).
 
 ## Faz 1 sonucu
 - Ortam: `maze_env/`, sözleşme: [maze_env/SPEC.md](maze_env/SPEC.md), 29 birim testi (`tests/`) geçiyor, Gymnasium `check_env` iki modda da uyarısız.

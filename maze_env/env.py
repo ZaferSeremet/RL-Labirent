@@ -197,10 +197,11 @@ class MazeEnv(gym.Env):
                 code = int(visited[r + dy, r + dx])
             state = state * NEIGHBOR_CODES + code
 
+        # Ajan çıkışın üstündeyse (yalnız bölümün son gözlemi) yön tanımsız, 0 verilir
         exit_dir = 0
         ey, ex = np.nonzero(tiles == TILE_EXIT)
         if len(ey):
-            exit_dir = _EXIT_DIR_INDEX[(int(np.sign(ey[0] - r)), int(np.sign(ex[0] - r)))]
+            exit_dir = _EXIT_DIR_INDEX.get((int(np.sign(ey[0] - r)), int(np.sign(ex[0] - r))), 0)
 
         return (state * EXIT_DIRS + exit_dir) * 5 + self._last_action
 

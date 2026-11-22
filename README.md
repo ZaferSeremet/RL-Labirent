@@ -23,6 +23,8 @@ Ayrıntılı tanım: [maze_env/SPEC.md](maze_env/SPEC.md).
 
 Gerekenler: **Python 3.11 ya da daha yeni** (3.11 ve 3.14'te denendi). Kurulum ilk seferde ~200 MB paket indirir.
 
+Kod sana `RL-Labirent_<tarih>_<sürüm>.zip` olarak gelir. Zip'i istediğin yere çıkar; içinden çıkan `RL-Labirent` klasörü proje klasörüdür. Hangi sürümü kullandığın `SURUM.txt` dosyasında yazar.
+
 **Windows:** proje klasöründe `kurulum.bat` dosyasına çift tıkla. Ya da terminalde:
 
 ```bash
@@ -110,7 +112,15 @@ Alan kişi: Sonuçlar → **İçe aktar** → zip ya da klasör seç.
 
 **Rapor:** rapor kendiliğinden oluşmaz. Sonuçlar'da rapora girecek çalışmaları işaretle → **Rapor dışa aktar** → kaydedilecek yeri seç. Seçtiğin yerin içinde tek bir klasör açılır (`rapor_<tarih>`, İngilizcede `report_<tarih>`); içinde `rapor.html` (tarayıcıda kendiliğinden açılır), `rapor.md`, `grafikler/` ve `tablolar/` bulunur. Test edilmemiş çalışmalarda test tabloları ve baseline grafikleri boş kalır, önce **Test** sekmesinden test et.
 
-Sonuçlar kendi bilgisayarında `results/` klasöründe durur; bu klasör git'e girmez.
+Sonuçlar kendi bilgisayarında `results/` klasöründe durur.
+
+### Yeni sürüm gelince
+
+Ortamda düzeltme olursa yeni bir zip gelir. Eskisinin üstüne yazma:
+1. Yeni zip'i **ayrı bir klasöre** çıkar.
+2. Eski klasörden yenisine kendi dosyalarını taşı: `agents/<algoritman>.py` ve `results/` klasöründeki çalışmaların.
+3. Yeni klasörde `kurulum.bat`'ı çalıştır (paketler değişmediyse hızlı biter).
+4. Yeni sürümün `SURUM.txt`'sinde ya da gelen mesajda **test sonuçlarını etkileyen bir değişiklik** yazıyorsa, o sürümle tekrar test et; farklı sürümlerin sonuçlarını karşılaştırma.
 
 ## 6. Kurallar
 
@@ -128,7 +138,7 @@ Sonuçlar kendi bilgisayarında `results/` klasöründe durur; bu klasör git'e 
 | Ajanım listede yok | Dosya `agents/` içinde mi, sınıf `Agent`'tan türüyor mu, `name` benzersiz mi? Ayarlar'da **Yenile**'ye bas; hata varsa orada yazar |
 | `ModuleNotFoundError: PySide6` | Kurulum adımları atlanmış ya da `.venv` dışındaki Python ile açılmış; `kurulum.bat`'ı çalıştır, uygulamayı `baslat.bat` ile aç |
 | Eğitim çok yavaş | Bölüm sayısını ya da tekrar sayısını deneme için düşür; izleme hızı eğitimi yavaşlatmaz |
-| Testler kırılıyor | Ortam dosyalarında değişiklik var mı? `git status` ile bak |
+| Testler kırılıyor | Ortam dosyalarını (`maze_env/`, `engine/`, `configs/`) değiştirdin mi? Zip'i yeniden çıkarıp dene |
 
 ## Klasörler
 
@@ -142,5 +152,5 @@ gui/          arayüz
 configs/      ortak ayarlar (test labirentleri)
 tools/        ajan_dene.py (komut satırı deneme), oyna_terminal.py
 tests/        otomatik testler
-results/      senin sonuçların (git'e girmez)
+results/      senin sonuçların
 ```

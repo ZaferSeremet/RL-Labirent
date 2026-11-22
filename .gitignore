@@ -6,3 +6,5 @@ results/*
 !results/.gitkeep
 kullanici_ayarlari.json
 dagitim/
+# Ödev metni (hocanın materyali; public depoya girmez)
+*.pdf

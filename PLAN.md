@@ -1,6 +1,12 @@
 # Ortam + Uygulama Planı (taslak)
 
-Durum: **Faz 0-5 bitti (2026-11-22).** Sıradaki: Faz 6 (ekibe dağıtım: README). Deney akışı için bkz. [DENEY_AKISI.md](DENEY_AKISI.md).
+Durum: **Faz 0-6 bitti (2026-11-22).** Ekip kılavuzu: [README.md](README.md). Sıradaki: kodu ekibe ulaştırma (GitHub ya da zip) ve herkesin kendi ajanı. Deney akışı için bkz. [DENEY_AKISI.md](DENEY_AKISI.md).
+
+## Faz 6 sonucu
+- Kök [README.md](README.md): kurulum, uygulamayı açma, ajan yazma, deney akışı, sonuç gönderme, kurallar, sorun giderme.
+- `kurulum.bat` (sanal ortam + paketler) ve `baslat.bat` (uygulamayı açar); Windows'ta çift tıklamayla.
+- Temiz kopyada denendi: `kurulum.bat` (Python 3.14) ve Python 3.11.5 ile 98 test geçiyor. En düşük sürüm 3.11.
+- Faz 5'ten sonra eklenenler: çıkışa yaklaşma ödülü `closer` (yol mesafesiyle, simetrik, varsayılan 0; [maze_env/SPEC.md](maze_env/SPEC.md)), Sonuçlar sekmesinde silme (onaylı, Geri Dönüşüm Kutusu'na; o an çalışan çalışma silinemez), Windows karanlık mod düzeltmesi.
 
 ## Faz 3-5 sonucu
 - Uygulamayı başlat: `.venv\Scripts\python app.py` (sekmeler: Ayarlar, Eğitim, Test, Sonuçlar, Oyna).
@@ -102,9 +108,10 @@ RL-Project/
 - **Rapor dışa aktarma:** tüm grafikler + tablolar + ayarlar tek klasörde, rapora hazır bir belgeyle.
 
 ### Faz 6: Ekibe dağıtım
-- README: kurulum, ajan yazma, eğitim/test, sonuç gönderme.
+- README: kurulum, ajan yazma, eğitim/test, sonuç gönderme. **Bitti.**
 
 ## Açık sorular
 - Dışa aktarılan raporun biçimi (Word, PDF, HTML?).
 - Labirent boyutları, pencere boyutu, adım limiti, varsayılan ödül değerleri: Faz 1'de deneyerek seçilecek.
-- Ortak Python sürümü.
+- ~~Ortak Python sürümü.~~ En az 3.11 (3.11 ve 3.14'te denendi).
+- Kodun ekibe ulaştırılması: GitHub deposu mu, zip mi?

@@ -16,6 +16,7 @@ from __future__ import annotations
 import csv
 import json
 import re
+import shutil
 import time
 from datetime import datetime
 from pathlib import Path
@@ -63,6 +64,21 @@ def list_runs(root: Path | None = None) -> list[Path]:
         return []
     runs = [p for p in root.iterdir() if (p / "ayarlar.json").is_file()]
     return sorted(runs, key=lambda p: p.name, reverse=True)
+
+
+def check_deletable(run_dir: Path, root: Path | None = None) -> Path:
+    """Silinecek klasörün gerçekten sonuç kökünün doğrudan altındaki bir çalışma
+    olduğunu doğrular (yanlışlıkla başka bir klasör silinmesin). Çözülmüş yolu döndürür."""
+    root_r = Path(root or RESULTS_ROOT).resolve()
+    run_r = Path(run_dir).resolve()
+    if run_r.parent != root_r or not (run_r / "ayarlar.json").is_file():
+        raise ValueError(f"Sonuç klasörü değil, silinmedi: {run_dir}")
+    return run_r
+
+
+def delete_run(run_dir: Path, root: Path | None = None) -> None:
+    """Çalışma klasörünü kalıcı olarak siler (arayüz önce Geri Dönüşüm Kutusu'nu dener)."""
+    shutil.rmtree(check_deletable(run_dir, root))
 
 
 def _slug(s: str) -> str:

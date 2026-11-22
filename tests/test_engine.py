@@ -372,3 +372,19 @@ def test_job_rejects_bad_arguments():
         Job("train")
     with pytest.raises(ValueError):
         Job("test", kinds=["normal"])
+
+
+def test_delete_run_only_inside_results_root(tmp_path):
+    from engine import storage
+
+    root = tmp_path / "results"
+    run = storage.new_run_dir("ornek", root=root)
+    storage.write_settings(run, {"agent": "ornek"})
+    with pytest.raises(ValueError):
+        storage.delete_run(tmp_path, root=root)  # kökün kendisi değil
+    not_run = root / "rastgele"
+    not_run.mkdir()
+    with pytest.raises(ValueError):
+        storage.delete_run(not_run, root=root)  # ayarlar.json yok
+    storage.delete_run(run, root=root)
+    assert not run.exists() and not_run.exists()

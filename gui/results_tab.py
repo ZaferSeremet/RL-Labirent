@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import QFile, Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -78,7 +79,7 @@ def _agent_test_success(test_kind_dict: dict[str, dict[str, Any]], agent_name: s
 
 
 class ResultsTab(QWidget):
-    """Kayıtlı çalışmaları listeler, işaretlileri çizer ve rapor/zip dışa aktarır (silme yok)."""
+    """Kayıtlı çalışmaları listeler, işaretlileri çizer, rapor/zip dışa aktarır ve siler."""
 
     def __init__(
         self,
@@ -86,10 +87,13 @@ class ResultsTab(QWidget):
         parent: QWidget | None = None,
         *,
         results_root: Path | None = None,
+        busy_dirs: Callable[[], list[Path]] | None = None,
     ) -> None:
         super().__init__(parent)
         self._notifier = notifier
         self._results_root = results_root
+        # O an eğitim/test sürecinin yazdığı klasörler: bunlar silinemez
+        self._busy_dirs = busy_dirs or (lambda: [])
         self._run_dirs: list[Path] = []
         self._updating_table = False
 
@@ -132,6 +136,14 @@ class ResultsTab(QWidget):
         self.open_folder_btn = QPushButton("Klasörü aç")
         self.open_folder_btn.clicked.connect(self.open_selected_folder)
         toolbar.addWidget(self.open_folder_btn)
+
+        self.delete_btn = QPushButton("Sil")
+        self.delete_btn.setProperty("accent", "danger")
+        self.delete_btn.setToolTip(
+            "İşaretli çalışmaları (işaret yoksa seçili satırı) Geri Dönüşüm Kutusu'na taşır"
+        )
+        self.delete_btn.clicked.connect(lambda: self.delete_runs())
+        toolbar.addWidget(self.delete_btn)
 
         toolbar.addStretch(1)
 
@@ -430,6 +442,67 @@ class ResultsTab(QWidget):
             self._notifier.notify("Rapor Oluşturuldu", str(html_path))
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(html_path.resolve())))
         return html_path
+
+    def delete_runs(self, run_dirs: list[Path] | None = None, *, confirm: bool = True) -> list[Path]:
+        """Çalışmaları Geri Dönüşüm Kutusu'na taşır. Silinenleri döndürür."""
+        if run_dirs is None:
+            run_dirs = self.checked_run_dirs()
+            if not run_dirs:
+                primary = self._primary_run_dir()
+                run_dirs = [primary] if primary is not None else []
+        if not run_dirs:
+            QMessageBox.warning(self, "Çalışma Seçilmedi", "Silinecek çalışmaları işaretleyin ya da bir satır seçin.")
+            return []
+
+        busy = {Path(p).resolve() for p in self._busy_dirs() if p is not None}
+        blocked = [d for d in run_dirs if Path(d).resolve() in busy]
+        run_dirs = [d for d in run_dirs if Path(d).resolve() not in busy]
+        if blocked:
+            QMessageBox.warning(
+                self,
+                "Silinemez",
+                "Şu an eğitilen ya da test edilen çalışma silinemez:\n"
+                + "\n".join(d.name for d in blocked),
+            )
+        if not run_dirs:
+            return []
+
+        if confirm:
+            names = "\n".join(f"• {d.name}" for d in run_dirs[:15])
+            if len(run_dirs) > 15:
+                names += f"\n… ve {len(run_dirs) - 15} çalışma daha"
+            answer = QMessageBox.question(
+                self,
+                "Çalışmaları Sil",
+                f"{len(run_dirs)} çalışma Geri Dönüşüm Kutusu'na taşınacak:\n\n{names}\n\n"
+                "Gerekirse oradan geri yüklenebilir. Devam edilsin mi?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return []
+
+        root = self._get_results_root()
+        deleted: list[Path] = []
+        failed: list[str] = []
+        for d in run_dirs:
+            try:
+                target = storage.check_deletable(d, root)
+            except ValueError as exc:
+                failed.append(str(exc))
+                continue
+            if QFile.moveToTrash(str(target)):
+                deleted.append(d)
+            else:
+                failed.append(f"{d.name}: Geri Dönüşüm Kutusu'na taşınamadı (dosya açık olabilir)")
+
+        self.refresh_runs()
+        if failed:
+            QMessageBox.warning(self, "Bazıları Silinemedi", "\n".join(failed))
+        win = self.window()
+        if deleted and hasattr(win, "statusBar"):
+            win.statusBar().showMessage(f"{len(deleted)} çalışma Geri Dönüşüm Kutusu'na taşındı", 5000)
+        return deleted
 
     def open_selected_folder(self) -> None:
         target = self._primary_run_dir() or self._get_results_root()

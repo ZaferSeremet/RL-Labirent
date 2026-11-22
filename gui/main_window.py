@@ -169,6 +169,7 @@ class MainWindow(QMainWindow):
             notifier=self.notifier,
             parent=self,
             results_root=results_root,
+            busy_dirs=self._busy_run_dirs,
         )
         self.play_tab = play_tab.PlayTab(self)
 
@@ -184,6 +185,15 @@ class MainWindow(QMainWindow):
         self.train_tab.go_to_test_requested.connect(self._go_to_test_with_run)
         self.test_tab.testing_finished.connect(self._on_testing_finished)
         self.tabs.currentChanged.connect(self._on_tab_changed)
+
+    def _busy_run_dirs(self) -> list[Path]:
+        """O an arka planda yazılan çalışma klasörleri (Sonuçlar'dan silinemez)."""
+        busy: list[Path] = []
+        if self.train_tab.is_running() and self.train_tab.last_run_dir() is not None:
+            busy.append(self.train_tab.last_run_dir())
+        if self.test_tab.is_running() and self.test_tab._active_run_dir is not None:
+            busy.append(self.test_tab._active_run_dir)
+        return busy
 
     def _go_to_train_tab(self) -> None:
         self.tabs.setCurrentWidget(self.train_tab)

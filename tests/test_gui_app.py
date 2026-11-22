@@ -89,9 +89,9 @@ def test_main_window_structure_and_tab_order(window: MainWindow):
     titles = [window.tabs.tabText(i) for i in range(window.tabs.count())]
     assert titles == ["Ayarlar", "Eğitim", "Test", "Sonuçlar", "Oyna"]
 
-    # Sonuçlar sekmesinde silme butonu yok
-    result_buttons = [b.text().lower() for b in window.results_tab.findChildren(QPushButton)]
-    assert not any("sil" in txt for txt in result_buttons)
+    # Sonuçlar sekmesinde silme butonu var
+    result_buttons = [b.text() for b in window.results_tab.findChildren(QPushButton)]
+    assert "Sil" in result_buttons
 
 
 def test_settings_tab_builds_train_config_and_validates(window: MainWindow):
@@ -307,3 +307,38 @@ def test_train_tab_stop_button_stops_running_job(
     saved_settings = storage.read_settings(tt.last_run_dir)
     assert saved_settings["durum"] == "durduruldu"
     assert tt.live_plot.point_count() < 4000
+
+
+def test_results_tab_delete_runs(window: MainWindow, isolated_root: Path, monkeypatch, modal_messages):
+    import shutil
+
+    from PySide6.QtCore import QFile
+
+    # Testte gerçek Geri Dönüşüm Kutusu'na dokunma
+    monkeypatch.setattr(QFile, "moveToTrash", staticmethod(lambda p: (shutil.rmtree(p), True)[1]))
+    dirs = []
+    for name in ("2026-01-01_00-00-01_a", "2026-01-01_00-00-02_b", "2026-01-01_00-00-03_c"):
+        d = isolated_root / name
+        (d / "kayitlar").mkdir(parents=True)
+        storage.write_settings(d, {"agent": {"name": "ornek"}, "durum": "tamamlandi"})
+        dirs.append(d)
+
+    rt = window.results_tab
+    rt.refresh_runs()
+    assert rt.runs_table.rowCount() == 3
+
+    # Eğitilmekte olan çalışma silinmez
+    monkeypatch.setattr(window, "_busy_run_dirs", lambda: [dirs[0]])
+    rt._busy_dirs = window._busy_run_dirs
+    deleted = rt.delete_runs([dirs[0], dirs[1]], confirm=False)
+    assert deleted == [dirs[1]]
+    assert dirs[0].exists() and not dirs[1].exists()
+    assert any(kind == "warning" for kind, *_ in modal_messages)
+    assert rt.runs_table.rowCount() == 2
+
+    # Sonuç kökü dışındaki klasör silinmez
+    outside = isolated_root.parent / "baska"
+    outside.mkdir()
+    (outside / "ayarlar.json").write_text("{}", encoding="utf-8")
+    assert rt.delete_runs([outside], confirm=False) == []
+    assert outside.exists()

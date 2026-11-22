@@ -27,18 +27,33 @@ from PySide6.QtWidgets import (
 
 from engine import analysis, registry, settings as engine_settings, storage, tester
 from engine.background import Job
+from engine.i18n import kind_label, kind_short, method_label, tx
 
 from . import maze_view
 from .notify import Notifier
 
-_STATUS_LABELS: dict[str, str] = {
-    "tamamlandi": "Tamamlandı",
-    "durduruldu": "Durduruldu",
-    "egitiliyor": "Eğitiliyor",
-    "hata": "Hata",
+_STATUS_LABELS: dict[str, tuple[str, str]] = {
+    "tamamlandi": ("Tamamlandı", "Completed"),
+    "durduruldu": ("Durduruldu", "Stopped"),
+    "egitiliyor": ("Eğitiliyor", "Training"),
+    "hata": ("Hata", "Error"),
 }
 
-_TABLE_HEADERS = ("Yöntem", "Başarı", "Ort. Adım", "Verim", "Ort. Ödül", "Çarpma")
+
+def _status_label(raw: str) -> str:
+    pair = _STATUS_LABELS.get(raw)
+    return tx(*pair) if pair else raw
+
+
+def _table_headers() -> list[str]:
+    return [
+        tx("Yöntem", "Method"),
+        tx("Başarı", "Success"),
+        tx("Ort. Adım", "Avg. Steps"),
+        tx("Verim", "Efficiency"),
+        tx("Ort. Ödül", "Avg. Reward"),
+        tx("Çarpma", "Wall Hits"),
+    ]
 
 
 def format_run_display(run_dir: Path, st: dict[str, Any] | None = None) -> str:
@@ -52,16 +67,17 @@ def format_run_display(run_dir: Path, st: dict[str, Any] | None = None) -> str:
     label = str((st.get("train_config") or {}).get("label") or "").strip() or "-"
     created = str(st.get("created") or "").replace("T", " ")[:16] or "-"
     raw_status = str(st.get("durum") or "-")
-    durum = _STATUS_LABELS.get(raw_status, raw_status)
+    durum = _status_label(raw_status)
     return f"{agent} | {label} | {created} | {durum}"
 
 
 def _fmt_pct(val: float | None, std: float | None = None) -> str:
     if val is None:
         return "-"
-    base = f"%{val * 100:.1f}"
+    base = tx(f"%{val * 100:.1f}", f"{val * 100:.1f}%")
     if std is not None and std > 0:
-        return f"{base} (±%{std * 100:.1f})"
+        std_str = tx(f"±%{std * 100:.1f}", f"±{std * 100:.1f}%")
+        return f"{base} ({std_str})"
     return base
 
 
@@ -112,7 +128,7 @@ class TestTab(QWidget):
         # ------------------------------------------------- Üst kontrol çubuğu
         top_row = QHBoxLayout()
         top_row.setSpacing(8)
-        top_row.addWidget(QLabel("Çalışma:"))
+        top_row.addWidget(QLabel(tx("Çalışma:", "Run:")))
 
         self.run_combo = QComboBox()
         self.run_combo.setMinimumWidth(200)
@@ -121,24 +137,24 @@ class TestTab(QWidget):
         self.run_combo.currentIndexChanged.connect(self._on_run_selected)
         top_row.addWidget(self.run_combo, 1)
 
-        self.refresh_btn = QPushButton("Yenile")
+        self.refresh_btn = QPushButton(tx("Yenile", "Refresh"))
         self.refresh_btn.clicked.connect(lambda: self.refresh_runs())
         top_row.addWidget(self.refresh_btn)
 
-        self.normal_check = QCheckBox("Normal")
+        self.normal_check = QCheckBox(kind_short("normal"))
         self.normal_check.setChecked(True)
-        self.buyuk_check = QCheckBox("Büyük")
+        self.buyuk_check = QCheckBox(kind_short("buyuk"))
         self.buyuk_check.setChecked(True)
         top_row.addWidget(self.normal_check)
         top_row.addWidget(self.buyuk_check)
 
-        self.start_btn = QPushButton("Test et")
+        self.start_btn = QPushButton(tx("Test et", "Run test"))
         self.start_btn.setMinimumWidth(90)
         self.start_btn.setProperty("accent", "primary")
         self.start_btn.clicked.connect(self.start_test)
         top_row.addWidget(self.start_btn)
 
-        self.stop_btn = QPushButton("Durdur")
+        self.stop_btn = QPushButton(tx("Durdur", "Stop"))
         self.stop_btn.setMinimumWidth(84)
         self.stop_btn.setEnabled(False)
         self.stop_btn.setProperty("accent", "danger")
@@ -152,8 +168,8 @@ class TestTab(QWidget):
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
-        self.progress_bar.setFormat("Hazır")
-        self.status_label = QLabel("Test etmek için bir çalışma seçin.")
+        self.progress_bar.setFormat(tx("Hazır", "Ready"))
+        self.status_label = QLabel(tx("Test etmek için bir çalışma seçin.", "Select a run to test."))
         self.status_label.setStyleSheet("color: #475569;")
         prog_row.addWidget(self.progress_bar, 1)
         prog_row.addWidget(self.status_label, 1)
@@ -170,13 +186,13 @@ class TestTab(QWidget):
         tables_v.setContentsMargins(0, 0, 0, 0)
         tables_v.setSpacing(8)
 
-        normal_box = QGroupBox("Normal Labirent Sonuçları")
+        normal_box = QGroupBox(tx(f"{kind_label('normal')} Sonuçları", f"{kind_label('normal')} Results"))
         normal_v = QVBoxLayout(normal_box)
         self.normal_table = self._create_result_table()
         normal_v.addWidget(self.normal_table)
         tables_v.addWidget(normal_box, 1)
 
-        buyuk_box = QGroupBox("Büyük Labirent Sonuçları")
+        buyuk_box = QGroupBox(tx(f"{kind_label('buyuk')} Sonuçları", f"{kind_label('buyuk')} Results"))
         buyuk_v = QVBoxLayout(buyuk_box)
         self.buyuk_table = self._create_result_table()
         buyuk_v.addWidget(self.buyuk_table)
@@ -185,20 +201,20 @@ class TestTab(QWidget):
         splitter.addWidget(tables_container)
 
         # Sağ: Bölüm İzleme
-        replay_box = QGroupBox("Test Bölümü İzleme")
+        replay_box = QGroupBox(tx("Test Bölümü İzleme", "Test Episode Replay"))
         replay_v = QVBoxLayout(replay_box)
         replay_v.setSpacing(6)
 
         sel_row1 = QHBoxLayout()
         sel_row1.setSpacing(6)
-        sel_row1.addWidget(QLabel("Tür:"))
+        sel_row1.addWidget(QLabel(tx("Tür:", "Type:")))
         self.replay_kind_combo = QComboBox()
-        self.replay_kind_combo.addItem("Normal", "normal")
-        self.replay_kind_combo.addItem("Büyük", "buyuk")
+        self.replay_kind_combo.addItem(kind_short("normal"), "normal")
+        self.replay_kind_combo.addItem(kind_short("buyuk"), "buyuk")
         self.replay_kind_combo.currentIndexChanged.connect(self._populate_seeds)
         sel_row1.addWidget(self.replay_kind_combo)
 
-        sel_row1.addWidget(QLabel("Yöntem:"))
+        sel_row1.addWidget(QLabel(tx("Yöntem:", "Method:")))
         self.replay_method_combo = QComboBox()
         self.replay_method_combo.setMinimumWidth(110)
         self.replay_method_combo.currentIndexChanged.connect(self._on_replay_method_changed)
@@ -207,16 +223,16 @@ class TestTab(QWidget):
 
         sel_row2 = QHBoxLayout()
         sel_row2.setSpacing(6)
-        sel_row2.addWidget(QLabel("Tekrar:"))
+        sel_row2.addWidget(QLabel(tx("Tekrar:", "Repeat:")))
         self.replay_repeat_combo = QComboBox()
         sel_row2.addWidget(self.replay_repeat_combo)
 
-        sel_row2.addWidget(QLabel("Seed:"))
+        sel_row2.addWidget(QLabel(tx("Seed:", "Seed:")))
         self.replay_seed_combo = QComboBox()
         self.replay_seed_combo.setMinimumWidth(90)
         sel_row2.addWidget(self.replay_seed_combo, 1)
 
-        self.replay_btn = QPushButton("İzle")
+        self.replay_btn = QPushButton(tx("İzle", "Replay"))
         self.replay_btn.setMinimumWidth(78)
         self.replay_btn.clicked.connect(self.replay_selected_episode)
         sel_row2.addWidget(self.replay_btn)
@@ -230,8 +246,9 @@ class TestTab(QWidget):
 
     @staticmethod
     def _create_result_table() -> QTableWidget:
-        table = QTableWidget(0, len(_TABLE_HEADERS))
-        table.setHorizontalHeaderLabels(list(_TABLE_HEADERS))
+        headers = _table_headers()
+        table = QTableWidget(0, len(headers))
+        table.setHorizontalHeaderLabels(headers)
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table.setAlternatingRowColors(True)
@@ -314,7 +331,7 @@ class TestTab(QWidget):
             row = table.rowCount()
             table.insertRow(row)
             cells = (
-                method,
+                method_label(method),
                 _fmt_pct(st.get("basari"), st.get("basari_std")),
                 _fmt_num(st.get("adim"), 1),
                 _fmt_num(st.get("verim"), 2),
@@ -342,7 +359,7 @@ class TestTab(QWidget):
             self.replay_method_combo.addItem(agent_name, agent_name)
         for bname in baselines:
             if bname != agent_name:
-                self.replay_method_combo.addItem(f"{bname} (baseline)", bname)
+                self.replay_method_combo.addItem(f"{method_label(bname)} (baseline)", bname)
         self.replay_method_combo.blockSignals(False)
 
         # Mevcut model tekrarları
@@ -352,7 +369,7 @@ class TestTab(QWidget):
             avail_reps = [0]
         self.replay_repeat_combo.clear()
         for r in avail_reps:
-            self.replay_repeat_combo.addItem(f"Tekrar {r}", r)
+            self.replay_repeat_combo.addItem(tx(f"Tekrar {r}", f"Repeat {r}"), r)
 
         self._on_replay_method_changed()
         self._populate_seeds()
@@ -389,12 +406,15 @@ class TestTab(QWidget):
 
         try:
             traj = tester.replay_test_episode(run_dir, kind, method, repeat, int(seed))
-            title = f"{kind} · {method} · tekrar {repeat} · seed {seed}"
+            title = tx(
+                f"{kind_short(kind)} · {method_label(method)} · tekrar {repeat} · seed {seed}",
+                f"{kind_short(kind)} · {method_label(method)} · repeat {repeat} · seed {seed}",
+            )
             self.replay_player.load(traj, title=title, autoplay=True)
-            self.status_label.setText(f"İzleniyor: {title}")
+            self.status_label.setText(tx(f"İzleniyor: {title}", f"Watching: {title}"))
             return True
         except Exception as exc:  # noqa: BLE001
-            QMessageBox.warning(self, "Bölüm İzlenemedi", str(exc))
+            QMessageBox.warning(self, tx("Bölüm İzlenemedi", "Replay Failed"), str(exc))
             return False
 
     # ------------------------------------------------------------ arka plan testi
@@ -408,7 +428,11 @@ class TestTab(QWidget):
 
         run_dir = self.selected_run_dir()
         if run_dir is None:
-            QMessageBox.warning(self, "Çalışma Seçilmedi", "Lütfen test edilecek bir çalışma seçin.")
+            QMessageBox.warning(
+                self,
+                tx("Çalışma Seçilmedi", "No Run Selected"),
+                tx("Lütfen test edilecek bir çalışma seçin.", "Please select a run to test."),
+            )
             return False
 
         kinds: list[str] = []
@@ -417,7 +441,14 @@ class TestTab(QWidget):
         if self.buyuk_check.isChecked():
             kinds.append("buyuk")
         if not kinds:
-            QMessageBox.warning(self, "Test Türü Seçilmedi", "En az bir test türü (Normal veya Büyük) seçin.")
+            QMessageBox.warning(
+                self,
+                tx("Test Türü Seçilmedi", "No Test Type Selected"),
+                tx(
+                    "En az bir test türü (Normal veya Büyük) seçin.",
+                    "Please select at least one test type (Normal or Large).",
+                ),
+            )
             return False
 
         self._active_run_dir = run_dir
@@ -425,8 +456,14 @@ class TestTab(QWidget):
         self._total = 1
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
-        self.progress_bar.setFormat("Başlatılıyor...")
-        self.status_label.setText(f"Test başlatılıyor: {run_dir.name} ({', '.join(kinds)})")
+        self.progress_bar.setFormat(tx("Başlatılıyor...", "Starting..."))
+        kind_names = ", ".join(kind_short(k) for k in kinds)
+        self.status_label.setText(
+            tx(
+                f"Test başlatılıyor: {run_dir.name} ({kind_names})",
+                f"Starting test: {run_dir.name} ({kind_names})",
+            )
+        )
 
         self.start_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
@@ -441,7 +478,7 @@ class TestTab(QWidget):
         if self._job is not None and self._job.is_alive():
             self._job.stop()
             self.stop_btn.setEnabled(False)
-            self.status_label.setText("Test durduruluyor...")
+            self.status_label.setText(tx("Test durduruluyor...", "Stopping test..."))
 
     def stop_and_wait(self, timeout_s: float = 3.0) -> None:
         self._timer.stop()
@@ -489,9 +526,11 @@ class TestTab(QWidget):
                 self.progress_bar.setValue(0)
             elif etype == "test_episode":
                 self._completed += 1
-                last_text = (
-                    f"{ev.get('kind')} · {ev.get('method')} "
-                    f"(tekrar {ev.get('repeat')}, seed {ev.get('seed')})"
+                kind_str = kind_short(str(ev.get("kind") or ""))
+                method_str = method_label(str(ev.get("method") or ""))
+                last_text = tx(
+                    f"{kind_str} · {method_str} (tekrar {ev.get('repeat')}, seed {ev.get('seed')})",
+                    f"{kind_str} · {method_str} (repeat {ev.get('repeat')}, seed {ev.get('seed')})",
                 )
             elif etype == "kind_done":
                 kind_done = True
@@ -519,11 +558,11 @@ class TestTab(QWidget):
         self.start_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
         self.run_combo.setEnabled(True)
-        msg = str(ev.get("message") or "Bilinmeyen test hatası")
-        self.status_label.setText(f"Hata: {msg}")
+        msg = str(ev.get("message") or tx("Bilinmeyen test hatası", "Unknown test error"))
+        self.status_label.setText(tx(f"Hata: {msg}", f"Error: {msg}"))
         if self._notifier is not None:
-            self._notifier.notify("Test Hatası", msg, error=True)
-        QMessageBox.critical(self, "Test Hatası", msg)
+            self._notifier.notify(tx("Test Hatası", "Test Error"), msg, error=True)
+        QMessageBox.critical(self, tx("Test Hatası", "Test Error"), msg)
 
     def _on_done(self, ev: dict[str, Any]) -> None:
         self._timer.stop()
@@ -540,17 +579,30 @@ class TestTab(QWidget):
             analysis.summarize(run_dir)
             analysis.save_all_plots(run_dir)
         except Exception as exc:  # noqa: BLE001
-            summary_err = f" (özet/grafik uyarısı: {exc})"
+            summary_err = tx(
+                f" (özet/grafik uyarısı: {exc})",
+                f" (summary/plot warning: {exc})",
+            )
 
         self._load_results_tables(run_dir)
         if stopped:
-            title = "Test Durduruldu"
-            self.status_label.setText(f"Test durduruldu: {run_dir.name}{summary_err}")
+            title = tx("Test Durduruldu", "Test Stopped")
+            self.status_label.setText(
+                tx(
+                    f"Test durduruldu: {run_dir.name}{summary_err}",
+                    f"Test stopped: {run_dir.name}{summary_err}",
+                )
+            )
         else:
-            title = "Test Tamamlandı"
+            title = tx("Test Tamamlandı", "Test Completed")
             self.progress_bar.setValue(self.progress_bar.maximum())
-            self.progress_bar.setFormat("Tamamlandı (%p%)")
-            self.status_label.setText(f"Test tamamlandı: {run_dir.name}{summary_err}")
+            self.progress_bar.setFormat(tx("Tamamlandı (%p%)", "Completed (%p%)"))
+            self.status_label.setText(
+                tx(
+                    f"Test tamamlandı: {run_dir.name}{summary_err}",
+                    f"Test completed: {run_dir.name}{summary_err}",
+                )
+            )
 
         if self._notifier is not None:
             self._notifier.notify(title, run_dir.name)

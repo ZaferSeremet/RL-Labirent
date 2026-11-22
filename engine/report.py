@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from . import analysis, storage
+from .i18n import get_language, kind_label, kind_short, method_label, tx
 from .settings import TEST_KINDS
 
 
@@ -29,7 +30,11 @@ def _unique_dest(root: Path, name: str) -> Path:
 
 
 def _slug(text: str) -> str:
-    return re.sub(r"[^A-Za-z0-9_-]+", "-", text).strip("-") or "calisma"
+    return re.sub(r"[^A-Za-z0-9_-]+", "-", text).strip("-") or tx("calisma", "run")
+
+
+def _kind_file_slug(kind: str) -> str:
+    return tx("buyuk", "large") if kind == "buyuk" else kind
 
 
 def _find_run_dirs(base_dir: Path) -> list[Path]:
@@ -57,10 +62,20 @@ def _safe_extract_zip(zip_path: Path, dest_dir: Path) -> None:
         for member in zf.infolist():
             member_path = Path(member.filename)
             if member_path.is_absolute() or ".." in member_path.parts:
-                raise ValueError(f"Güvensiz zip yolu: {member.filename}")
+                raise ValueError(
+                    tx(
+                        f"Güvensiz zip yolu: {member.filename}",
+                        f"Unsafe zip path: {member.filename}",
+                    )
+                )
             target = (dest_resolved / member_path).resolve()
             if target != dest_resolved and dest_resolved not in target.parents:
-                raise ValueError(f"Zip hedef dışına çıkıyor: {member.filename}")
+                raise ValueError(
+                    tx(
+                        f"Zip hedef dışına çıkıyor: {member.filename}",
+                        f"Zip entry escapes target directory: {member.filename}",
+                    )
+                )
         zf.extractall(dest_resolved)
 
 
@@ -68,7 +83,7 @@ def _fmt_num(val: Any, digits: int = 3) -> str:
     if val is None or val == "":
         return "-"
     if isinstance(val, bool):
-        return "Evet" if val else "Hayır"
+        return tx("Evet", "Yes") if val else tx("Hayır", "No")
     if isinstance(val, int):
         return str(val)
     if isinstance(val, float):
@@ -79,7 +94,7 @@ def _fmt_num(val: Any, digits: int = 3) -> str:
 def _fmt_pct(val: Any) -> str:
     if val is None or val == "":
         return "-"
-    return f"%{float(val) * 100:.1f}"
+    return tx(f"%{float(val) * 100:.1f}", f"{float(val) * 100:.1f}%")
 
 
 def _write_csv(path: Path, headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> Path:
@@ -162,7 +177,12 @@ def export_run_zip(run_dir: Path, out_path: Path) -> Path:
     run_dir = Path(run_dir)
     out_path = Path(out_path)
     if not run_dir.is_dir():
-        raise ValueError(f"Çalışma klasörü bulunamadı: {run_dir}")
+        raise ValueError(
+            tx(
+                f"Çalışma klasörü bulunamadı: {run_dir}",
+                f"Run directory not found: {run_dir}",
+            )
+        )
 
     settings_path = run_dir / "ayarlar.json"
     if settings_path.is_file():
@@ -193,12 +213,17 @@ def import_runs(sources: Sequence[Path], root: Path | None = None) -> list[Path]
     for src in sources:
         src = Path(src)
         if not src.exists():
-            raise ValueError(f"Kaynak bulunamadı: {src}")
+            raise ValueError(tx(f"Kaynak bulunamadı: {src}", f"Source not found: {src}"))
 
         if src.is_dir():
             run_dirs = _find_run_dirs(src)
             if not run_dirs:
-                raise ValueError(f"Klasörde ayarlar.json içeren çalışma bulunamadı: {src}")
+                raise ValueError(
+                    tx(
+                        f"Klasörde ayarlar.json içeren çalışma bulunamadı: {src}",
+                        f"No run containing ayarlar.json found in directory: {src}",
+                    )
+                )
             for rdir in run_dirs:
                 dest = _unique_dest(dest_root, rdir.name)
                 shutil.copytree(rdir, dest)
@@ -209,7 +234,12 @@ def import_runs(sources: Sequence[Path], root: Path | None = None) -> list[Path]
                 _safe_extract_zip(src, tmp_dir)
                 run_dirs = _find_run_dirs(tmp_dir)
                 if not run_dirs:
-                    raise ValueError(f"Zip içinde ayarlar.json içeren çalışma bulunamadı: {src}")
+                    raise ValueError(
+                        tx(
+                            f"Zip içinde ayarlar.json içeren çalışma bulunamadı: {src}",
+                            f"No run containing ayarlar.json found in zip: {src}",
+                        )
+                    )
                 for rdir in run_dirs:
                     if rdir == tmp_dir:
                         settings = storage.read_settings(rdir)
@@ -220,31 +250,51 @@ def import_runs(sources: Sequence[Path], root: Path | None = None) -> list[Path]
                     shutil.copytree(rdir, dest)
                     imported.append(dest)
         else:
-            raise ValueError(f"Geçersiz kaynak (klasör veya .zip olmalı): {src}")
+            raise ValueError(
+                tx(
+                    f"Geçersiz kaynak (klasör veya .zip olmalı): {src}",
+                    f"Invalid source (must be a directory or .zip): {src}",
+                )
+            )
 
     return imported
 
 
 def export_report(run_dirs: Sequence[Path], out_dir: Path) -> Path:
-    """Seçilen çalışmalardan rapor klasörü üretir; rapor.html yolunu döndürür."""
+    """Seçilen çalışmalardan out_dir içinde zaman damgalı rapor klasörü üretir; HTML yolunu döndürür."""
     if not run_dirs:
-        raise ValueError("Rapor için en az bir çalışma klasörü gerekli.")
-
-    out_dir = Path(out_dir)
-    grafikler_dir = out_dir / "grafikler"
-    tablolar_dir = out_dir / "tablolar"
-    grafikler_dir.mkdir(parents=True, exist_ok=True)
-    tablolar_dir.mkdir(parents=True, exist_ok=True)
+        raise ValueError(
+            tx(
+                "Rapor için en az bir çalışma klasörü gerekli.",
+                "At least one run directory is required for a report.",
+            )
+        )
 
     loaded_runs: list[dict[str, Any]] = []
     summaries: list[dict[str, Any]] = []
     for rd in run_dirs:
         rd_path = Path(rd)
         if not rd_path.is_dir():
-            raise ValueError(f"Çalışma klasörü bulunamadı: {rd_path}")
+            raise ValueError(
+                tx(
+                    f"Çalışma klasörü bulunamadı: {rd_path}",
+                    f"Run directory not found: {rd_path}",
+                )
+            )
         run = analysis.load_run(rd_path)
         loaded_runs.append(run)
         summaries.append(analysis.summarize_loaded(run))
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    report_dir = _unique_dest(out_dir, f"{tx('rapor', 'report')}_{stamp}")
+    figs_dirname = tx("grafikler", "figures")
+    tables_dirname = tx("tablolar", "tables")
+    figs_dir = report_dir / figs_dirname
+    tables_dir = report_dir / tables_dirname
+    figs_dir.mkdir(parents=True, exist_ok=True)
+    tables_dir.mkdir(parents=True, exist_ok=True)
 
     # Tekil ve çoklu çalışma dosya önekleri
     used_slugs: dict[str, int] = {}
@@ -259,8 +309,16 @@ def export_report(run_dirs: Sequence[Path], out_dir: Path) -> Path:
 
     # 1. Ayarlar tablosu
     ayar_headers = [
-        "Çalışma", "Ajan", "Etiket", "Bölüm", "Tekrar",
-        "Ödüller", "Hiperparametreler", "Son %10 Başarı", "Son %10 Ödül", "Son %10 Adım",
+        tx("Çalışma", "Run"),
+        tx("Ajan", "Agent"),
+        tx("Etiket", "Label"),
+        tx("Bölüm", "Episodes"),
+        tx("Tekrar", "Repeats"),
+        tx("Ödüller", "Rewards"),
+        tx("Hiperparametreler", "Hyperparameters"),
+        tx("Son %10 Başarı", "Last 10% Success"),
+        tx("Son %10 Ödül", "Last 10% Reward"),
+        tx("Son %10 Adım", "Last 10% Steps"),
     ]
     ayar_rows: list[list[str]] = []
     for run, summary in zip(loaded_runs, summaries):
@@ -269,24 +327,45 @@ def export_report(run_dirs: Sequence[Path], out_dir: Path) -> Path:
             info["run_id"], info["ajan"], info["etiket"], info["bolum"], info["tekrar"],
             info["oduller"], info["hiperparametreler"], info["son_basari"], info["son_odul"], info["son_adim"],
         ])
-    _write_csv(tablolar_dir / "ayarlar.csv", ayar_headers, ayar_rows)
+    _write_csv(tables_dir / tx("ayarlar.csv", "settings.csv"), ayar_headers, ayar_rows)
 
     # 2. Öğrenme eğrileri (eğitim verisi olan çalışmalar)
     runs_with_train = [r for r in loaded_runs if r.get("train")]
     learning_imgs: list[tuple[str, str]] = []
     if runs_with_train:
         for metric, fname, title in (
-            ("success", "ogrenme_basari.png", "Öğrenme Eğrisi — Başarı Oranı"),
-            ("total_reward", "ogrenme_odul.png", "Öğrenme Eğrisi — Toplam Ödül"),
-            ("steps", "ogrenme_adim.png", "Öğrenme Eğrisi — Adım Sayısı"),
+            (
+                "success",
+                tx("ogrenme_basari.png", "learning_success.png"),
+                tx("Öğrenme Eğrisi — Başarı Oranı", "Learning Curve — Success Rate"),
+            ),
+            (
+                "total_reward",
+                tx("ogrenme_odul.png", "learning_reward.png"),
+                tx("Öğrenme Eğrisi — Toplam Ödül", "Learning Curve — Total Reward"),
+            ),
+            (
+                "steps",
+                tx("ogrenme_adim.png", "learning_steps.png"),
+                tx("Öğrenme Eğrisi — Adım Sayısı", "Learning Curve — Steps"),
+            ),
         ):
             fig = analysis.learning_curve(runs_with_train, metric=metric)
-            saved_name = _save_fig(fig, grafikler_dir / fname)
-            learning_imgs.append((title, f"grafikler/{saved_name}"))
+            saved_name = _save_fig(fig, figs_dir / fname)
+            learning_imgs.append((title, f"{figs_dirname}/{saved_name}"))
 
     # 3. Çalışma bazlı test tabloları & grafikleri + genelleme
     per_run_sections: list[dict[str, Any]] = []
-    test_headers = ["Yöntem", "Başarı", "Başarı Std", "Ort. Adım (Başarılı)", "Verimlilik", "Ort. Ödül", "Ort. Çarpma", "Bölüm"]
+    test_headers = [
+        tx("Yöntem", "Method"),
+        tx("Başarı", "Success"),
+        tx("Başarı Std", "Success Std"),
+        tx("Ort. Adım (Başarılı)", "Avg. Steps (Successful)"),
+        tx("Verimlilik", "Efficiency"),
+        tx("Ort. Ödül", "Avg. Reward"),
+        tx("Ort. Çarpma", "Avg. Wall Hits"),
+        tx("Bölüm", "Episodes"),
+    ]
 
     for run, summary, prefix in zip(loaded_runs, summaries, run_prefixes):
         section: dict[str, Any] = {
@@ -302,12 +381,13 @@ def export_report(run_dirs: Sequence[Path], out_dir: Path) -> Path:
             csv_rows = []
             display_rows = []
             for method, st in t_dict.items():
+                mlabel = method_label(method)
                 csv_rows.append([
-                    method, st["basari"], st["basari_std"], st["adim"],
+                    mlabel, st["basari"], st["basari_std"], st["adim"],
                     st["verim"], st["odul"], st["carpma"], st["n"],
                 ])
                 display_rows.append([
-                    method,
+                    mlabel,
                     _fmt_pct(st["basari"]),
                     _fmt_num(st["basari_std"], 3),
                     _fmt_num(st["adim"], 1),
@@ -316,16 +396,21 @@ def export_report(run_dirs: Sequence[Path], out_dir: Path) -> Path:
                     _fmt_num(st["carpma"], 1),
                     str(st["n"]),
                 ])
-            _write_csv(tablolar_dir / f"{prefix}test_{kind}.csv", test_headers, csv_rows)
-            img_name = _save_fig(analysis.baseline_bars(run, kind=kind), grafikler_dir / f"{prefix}test_{kind}.png")
+            kind_slug = _kind_file_slug(kind)
+            _write_csv(tables_dir / f"{prefix}test_{kind_slug}.csv", test_headers, csv_rows)
+            img_name = _save_fig(
+                analysis.baseline_bars(run, kind=kind),
+                figs_dir / f"{prefix}test_{kind_slug}.png",
+            )
             section["tests"][kind] = {
                 "rows": display_rows,
-                "img": f"grafikler/{img_name}",
+                "img": f"{figs_dirname}/{img_name}",
             }
 
         if "normal" in section["tests"] and "buyuk" in section["tests"]:
-            gen_name = _save_fig(analysis.generalization_plot(run), grafikler_dir / f"{prefix}genelleme.png")
-            section["gen_img"] = f"grafikler/{gen_name}"
+            gen_fname = f"{prefix}{tx('genelleme', 'generalization')}.png"
+            gen_name = _save_fig(analysis.generalization_plot(run), figs_dir / gen_fname)
+            section["gen_img"] = f"{figs_dirname}/{gen_name}"
 
         per_run_sections.append(section)
 
@@ -333,8 +418,14 @@ def export_report(run_dirs: Sequence[Path], out_dir: Path) -> Path:
     comp_rows: list[list[str]] = []
     comp_imgs: list[tuple[str, str]] = []
     comp_headers = [
-        "Çalışma", "Ajan", "Etiket", "Son %10 Başarı",
-        "Normal Başarı", "Normal Verimlilik", "Büyük Başarı", "Büyük Verimlilik",
+        tx("Çalışma", "Run"),
+        tx("Ajan", "Agent"),
+        tx("Etiket", "Label"),
+        tx("Son %10 Başarı", "Last 10% Success"),
+        tx("Normal Başarı", "Normal Success"),
+        tx("Normal Verimlilik", "Normal Efficiency"),
+        tx("Büyük Başarı", "Large Success"),
+        tx("Büyük Verimlilik", "Large Efficiency"),
     ]
     if multi:
         for summary in summaries:
@@ -350,26 +441,43 @@ def export_report(run_dirs: Sequence[Path], out_dir: Path) -> Path:
                 _fmt_pct(st_b["basari"]) if st_b else "-",
                 _fmt_num(st_b["verim"], 2) if st_b else "-",
             ])
-        _write_csv(tablolar_dir / "karsilastirma.csv", comp_headers, comp_rows)
+        _write_csv(tables_dir / tx("karsilastirma.csv", "comparison.csv"), comp_headers, comp_rows)
 
-        for kind, title in (("normal", "Karşılaştırma — Normal Labirent"), ("buyuk", "Karşılaştırma — Büyük Labirent")):
+        for kind, title in (
+            ("normal", tx("Karşılaştırma — Normal Labirent", "Comparison — Normal Maze")),
+            ("buyuk", tx("Karşılaştırma — Büyük Labirent", "Comparison — Large Maze")),
+        ):
             runs_k = [r for r in loaded_runs if (r.get("test") or {}).get(kind)]
             if runs_k:
-                cname = _save_fig(analysis.compare_runs(runs_k, kind=kind), grafikler_dir / f"karsilastirma_{kind}.png")
-                comp_imgs.append((title, f"grafikler/{cname}"))
+                kind_slug = _kind_file_slug(kind)
+                comp_fname = tx(f"karsilastirma_{kind_slug}.png", f"comparison_{kind_slug}.png")
+                cname = _save_fig(analysis.compare_runs(runs_k, kind=kind), figs_dir / comp_fname)
+                comp_imgs.append((title, f"{figs_dirname}/{cname}"))
 
     # 5. Markdown rapor
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+    report_title = tx("Pekiştirmeli Öğrenme Deney Raporu", "Reinforcement Learning Experiment Report")
+    settings_heading = tx("Çalışma Ayarları ve Eğitim Özeti", "Run Settings and Training Summary")
+    learning_heading = tx("Öğrenme Eğrileri", "Learning Curves")
+    run_heading_prefix = tx("Çalışma", "Run")
+    no_test_msg = tx(
+        "Bu çalışma için test sonucu bulunmuyor.",
+        "No test results available for this run.",
+    )
+    gen_heading = f"{tx('Genelleme', 'Generalization')} ({kind_short('normal')} vs {kind_short('buyuk')})"
+    gen_alt = tx("Genelleme", "Generalization")
+    comp_heading = tx("Çalışmalar Arası Karşılaştırma", "Cross-Run Comparison")
+
     md_parts: list[str] = [
-        "# Pekiştirmeli Öğrenme Deney Raporu",
-        f"_Oluşturulma: {now_str}_",
+        f"# {report_title}",
+        tx(f"_Oluşturulma: {now_str}_", f"_Generated: {now_str}_"),
         "",
-        "## Çalışma Ayarları ve Eğitim Özeti",
+        f"## {settings_heading}",
         _md_table(ayar_headers, ayar_rows),
         "",
     ]
     if learning_imgs:
-        md_parts.append("## Öğrenme Eğrileri")
+        md_parts.append(f"## {learning_heading}")
         for title, rel in learning_imgs:
             md_parts.append(f"### {title}")
             md_parts.append(f"![{title}]({rel})")
@@ -378,27 +486,28 @@ def export_report(run_dirs: Sequence[Path], out_dir: Path) -> Path:
     for sec in per_run_sections:
         s = sec["summary"]
         title_label = f"{s['agent']} {s['label']}".strip() or s["run_id"]
-        md_parts.append(f"## Çalışma: {title_label} (`{s['run_id']}`)")
+        md_parts.append(f"## {run_heading_prefix}: {title_label} (`{s['run_id']}`)")
         if not sec["tests"]:
-            md_parts.append("_Bu çalışma için test sonucu bulunmuyor._")
+            md_parts.append(f"_{no_test_msg}_")
             md_parts.append("")
             continue
-        for kind, kind_tr in (("normal", "Normal Labirent Testi"), ("buyuk", "Büyük Labirent Testi")):
+        for kind in TEST_KINDS:
             if kind not in sec["tests"]:
                 continue
             tdata = sec["tests"][kind]
-            md_parts.append(f"### {kind_tr}")
+            kind_title = tx(f"{kind_label(kind)} Testi", f"{kind_label(kind)} Test")
+            md_parts.append(f"### {kind_title}")
             md_parts.append(_md_table(test_headers, tdata["rows"]))
             md_parts.append("")
-            md_parts.append(f"![{kind_tr}]({tdata['img']})")
+            md_parts.append(f"![{kind_title}]({tdata['img']})")
             md_parts.append("")
         if sec["gen_img"]:
-            md_parts.append("### Genelleme (Normal vs Büyük)")
-            md_parts.append(f"![Genelleme]({sec['gen_img']})")
+            md_parts.append(f"### {gen_heading}")
+            md_parts.append(f"![{gen_alt}]({sec['gen_img']})")
             md_parts.append("")
 
     if multi:
-        md_parts.append("## Çalışmalar Arası Karşılaştırma")
+        md_parts.append(f"## {comp_heading}")
         md_parts.append(_md_table(comp_headers, comp_rows))
         md_parts.append("")
         for title, rel in comp_imgs:
@@ -406,17 +515,20 @@ def export_report(run_dirs: Sequence[Path], out_dir: Path) -> Path:
             md_parts.append(f"![{title}]({rel})")
             md_parts.append("")
 
-    (out_dir / "rapor.md").write_text("\n".join(md_parts), encoding="utf-8")
+    (report_dir / tx("rapor.md", "report.md")).write_text("\n".join(md_parts), encoding="utf-8")
 
-    # 6. HTML rapor (tek dosya, görseller grafikler/ göreli)
+    # 6. HTML rapor (tek dosya, görseller grafikler/ veya figures/ göreli)
     html_sections: list[str] = [
-        f"<h1>Pekiştirmeli Öğrenme Deney Raporu</h1>",
-        f"<p class='meta'>Oluşturulma: {html.escape(now_str)} · Çalışma sayısı: {len(loaded_runs)}</p>",
-        "<h2>Çalışma Ayarları ve Eğitim Özeti</h2>",
+        f"<h1>{html.escape(report_title)}</h1>",
+        tx(
+            f"<p class='meta'>Oluşturulma: {html.escape(now_str)} · Çalışma sayısı: {len(loaded_runs)}</p>",
+            f"<p class='meta'>Generated: {html.escape(now_str)} · Runs: {len(loaded_runs)}</p>",
+        ),
+        f"<h2>{html.escape(settings_heading)}</h2>",
         _html_table(ayar_headers, ayar_rows),
     ]
     if learning_imgs:
-        html_sections.append("<h2>Öğrenme Eğrileri</h2>")
+        html_sections.append(f"<h2>{html.escape(learning_heading)}</h2>")
         for title, rel in learning_imgs:
             html_sections.append(
                 f"<div class='card'><h3>{html.escape(title)}</h3>"
@@ -427,31 +539,32 @@ def export_report(run_dirs: Sequence[Path], out_dir: Path) -> Path:
         s = sec["summary"]
         title_label = f"{s['agent']} {s['label']}".strip() or s["run_id"]
         html_sections.append(
-            f"<h2>Çalışma: {html.escape(title_label)} "
+            f"<h2>{html.escape(run_heading_prefix)}: {html.escape(title_label)} "
             f"<span class='runid'>({html.escape(s['run_id'])})</span></h2>"
         )
         if not sec["tests"]:
-            html_sections.append("<p class='empty'>Bu çalışma için test sonucu bulunmuyor.</p>")
+            html_sections.append(f"<p class='empty'>{html.escape(no_test_msg)}</p>")
             continue
-        for kind, kind_tr in (("normal", "Normal Labirent Testi"), ("buyuk", "Büyük Labirent Testi")):
+        for kind in TEST_KINDS:
             if kind not in sec["tests"]:
                 continue
             tdata = sec["tests"][kind]
-            html_sections.append(f"<h3>{html.escape(kind_tr)}</h3>")
+            kind_title = tx(f"{kind_label(kind)} Testi", f"{kind_label(kind)} Test")
+            html_sections.append(f"<h3>{html.escape(kind_title)}</h3>")
             html_sections.append(_html_table(test_headers, tdata["rows"]))
             html_sections.append(
                 f"<div class='card'><img src='{html.escape(tdata['img'])}' "
-                f"alt='{html.escape(kind_tr)}'></div>"
+                f"alt='{html.escape(kind_title)}'></div>"
             )
         if sec["gen_img"]:
-            html_sections.append("<h3>Genelleme (Normal vs Büyük)</h3>")
+            html_sections.append(f"<h3>{html.escape(gen_heading)}</h3>")
             html_sections.append(
                 f"<div class='card'><img src='{html.escape(sec['gen_img'])}' "
-                f"alt='Genelleme'></div>"
+                f"alt='{html.escape(gen_alt)}'></div>"
             )
 
     if multi:
-        html_sections.append("<h2>Çalışmalar Arası Karşılaştırma</h2>")
+        html_sections.append(f"<h2>{html.escape(comp_heading)}</h2>")
         html_sections.append(_html_table(comp_headers, comp_rows))
         for title, rel in comp_imgs:
             html_sections.append(
@@ -459,12 +572,13 @@ def export_report(run_dirs: Sequence[Path], out_dir: Path) -> Path:
                 f"<img src='{html.escape(rel)}' alt='{html.escape(title)}'></div>"
             )
 
+    lang = get_language()
     html_doc = f"""<!DOCTYPE html>
-<html lang="tr">
+<html lang="{html.escape(lang)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pekiştirmeli Öğrenme Deney Raporu</title>
+<title>{html.escape(report_title)}</title>
 <style>
   body {{ font-family: "Segoe UI", Arial, sans-serif; max-width: 1100px; margin: 2rem auto; padding: 0 1.2rem; color: #1f2328; background: #fafbfc; line-height: 1.5; }}
   h1 {{ border-bottom: 2px solid #d0d7de; padding-bottom: 0.4rem; }}
@@ -485,6 +599,6 @@ def export_report(run_dirs: Sequence[Path], out_dir: Path) -> Path:
 </body>
 </html>
 """
-    html_path = out_dir / "rapor.html"
+    html_path = report_dir / tx("rapor.html", "report.html")
     html_path.write_text(html_doc, encoding="utf-8")
     return html_path

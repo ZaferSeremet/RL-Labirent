@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PySide6.QtCore import QLocale, Qt
 from PySide6.QtGui import QCloseEvent
-from PySide6.QtWidgets import QMainWindow, QTabWidget
+from PySide6.QtWidgets import QMainWindow, QMessageBox, QPushButton, QTabWidget
+
+from engine import i18n
+from engine.i18n import tx
 
 from . import play_tab
 from .notify import Notifier, app_icon
@@ -16,6 +20,12 @@ from .theme import apply_light_theme
 from .train_tab import TrainTab
 
 TAB_TITLES: tuple[str, ...] = ("Ayarlar", "Eğitim", "Test", "Sonuçlar", "Oyna")
+TAB_TITLES_EN: tuple[str, ...] = ("Settings", "Training", "Test", "Results", "Play")
+
+
+def tab_titles() -> tuple[str, ...]:
+    return TAB_TITLES_EN if i18n.is_english() else TAB_TITLES
+
 
 APP_STYLESHEET = """
 QMainWindow {
@@ -136,22 +146,44 @@ class MainWindow(QMainWindow):
         parent=None,
         *,
         results_root: Path | None = None,
+        persist_language: bool = False,
     ) -> None:
         super().__init__(parent)
         self._results_root = results_root
+        # Testlerde dil seçimi diske yazılmasın; app.py True verir
+        self._persist_language = persist_language
 
-        self.setWindowTitle("RL Labirent")
         self.setWindowIcon(app_icon(self))
         self.resize(1400, 850)
         self.setMinimumSize(920, 620)
         apply_light_theme()  # app.py dışından açılsa da (testler) aynı tema
         self.setStyleSheet(APP_STYLESHEET)
 
-        self.statusBar().showMessage("Hazır")
         self.notifier = Notifier(self)
+        self.tabs: QTabWidget | None = None
+        self._build_tabs()
 
+    # ------------------------------------------------------------ kurulum / dil
+
+    def _build_tabs(self, current_index: int = 0) -> None:
+        """Sekmeleri o anki dilde (baştan) kurar."""
+        # Sayı biçimi de dile uysun (İngilizcede 0.05, Türkçede sistem ayarı: 0,05)
+        locale = (QLocale(QLocale.Language.English, QLocale.Country.UnitedStates)
+                  if i18n.is_english() else QLocale.system())
+        QLocale.setDefault(locale)
+        self.setLocale(locale)  # alt widget'lar yerel ayarı pencereden alır
+        self.setWindowTitle(tx("RL Labirent", "RL Maze"))
+        self.statusBar().showMessage(tx("Hazır", "Ready"))
+        results_root = self._results_root
+
+        old = self.tabs
         self.tabs = QTabWidget(self)
-        self.setCentralWidget(self.tabs)
+
+        self.lang_btn = QPushButton(tx("English", "Türkçe"), self.tabs)
+        self.lang_btn.setToolTip(tx("Arayüzü ve çıktıları İngilizceye çevir",
+                                    "Switch the interface and outputs to Turkish"))
+        self.lang_btn.clicked.connect(self.toggle_language)
+        self.tabs.setCornerWidget(self.lang_btn, Qt.Corner.TopRightCorner)
 
         self.settings_tab = SettingsTab(self, results_root=results_root)
         self.train_tab = TrainTab(
@@ -173,11 +205,11 @@ class MainWindow(QMainWindow):
         )
         self.play_tab = play_tab.PlayTab(self)
 
-        self.tabs.addTab(self.settings_tab, TAB_TITLES[0])
-        self.tabs.addTab(self.train_tab, TAB_TITLES[1])
-        self.tabs.addTab(self.test_tab, TAB_TITLES[2])
-        self.tabs.addTab(self.results_tab, TAB_TITLES[3])
-        self.tabs.addTab(self.play_tab, TAB_TITLES[4])
+        for widget, title in zip(
+            (self.settings_tab, self.train_tab, self.test_tab, self.results_tab, self.play_tab),
+            tab_titles(),
+        ):
+            self.tabs.addTab(widget, title)
 
         # Sekmeler arası bağlantılar
         self.settings_tab.train_requested.connect(self._go_to_train_tab)
@@ -185,6 +217,31 @@ class MainWindow(QMainWindow):
         self.train_tab.go_to_test_requested.connect(self._go_to_test_with_run)
         self.test_tab.testing_finished.connect(self._on_testing_finished)
         self.tabs.currentChanged.connect(self._on_tab_changed)
+
+        self.setCentralWidget(self.tabs)  # eskisini Qt siler
+        if old is not None:
+            self.tabs.setCurrentIndex(current_index)
+
+    def set_language(self, lang: str) -> bool:
+        """Dili değiştirip sekmeleri yeniden kurar. Eğitim/test sürerken değiştirmez."""
+        if lang == i18n.get_language():
+            return True
+        if self.train_tab.is_running() or self.test_tab.is_running():
+            QMessageBox.warning(
+                self,
+                tx("Dil değiştirilemez", "Cannot change language"),
+                tx("Eğitim ya da test sürerken dil değiştirilemez. Bitmesini bekleyin ya da durdurun.",
+                   "The language cannot be changed while training or testing is running. "
+                   "Wait for it to finish or stop it."),
+            )
+            return False
+        index = self.tabs.currentIndex()
+        i18n.set_language(lang, persist=self._persist_language)
+        self._build_tabs(index)
+        return True
+
+    def toggle_language(self) -> bool:
+        return self.set_language("tr" if i18n.is_english() else "en")
 
     def _busy_run_dirs(self) -> list[Path]:
         """O an arka planda yazılan çalışma klasörleri (Sonuçlar'dan silinemez)."""

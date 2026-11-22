@@ -24,3 +24,6 @@ Parça B, A'nın sınıflarını yalnız imzalarıyla kullanır (`gui/maze_view.
 
 ## Testler
 `QT_QPA_PLATFORM=offscreen` ile, pytest-qt yok: `QApplication.instance() or QApplication([])`, olay döngüsü için `QCoreApplication.processEvents()` / `QTest.qWait`. Testler sonuç klasörünü `tmp_path` altına yazmalı (gerçek `results/` kirlenmesin): motorun `results_root` alanını ve `storage.RESULTS_ROOT`'u kullanan yerleri yamalayarak.
+
+## Dil
+Kullanıcıya görünen her metin `engine.i18n.tx("Türkçe", "English")` ile yazılır; kurallar [engine/I18N.md](../engine/I18N.md). Ana pencere sağ üstteki düğmeyle dili değiştirir ve sekmeleri baştan kurar (eğitim/test sürerken değiştirmez). Denetim: `tests/test_i18n.py`.

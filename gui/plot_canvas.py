@@ -10,6 +10,7 @@ from matplotlib.lines import Line2D
 from PySide6.QtWidgets import QSizePolicy, QVBoxLayout, QWidget
 
 from engine.analysis import AGENT_PALETTE
+from engine.i18n import tx
 
 
 def _make_message_figure(message: str, figsize: tuple[float, float] = (8.0, 4.5)) -> Figure:
@@ -37,7 +38,7 @@ class PlotCanvas(QWidget):
         self._layout.setContentsMargins(0, 0, 0, 0)
         self._layout.setSpacing(2)
 
-        self.show_message("Grafik göstermek için çalışma seçin")
+        self.show_message(tx("Grafik göstermek için çalışma seçin", "Select a run to display a plot"))
 
     @property
     def figure(self) -> Figure | None:
@@ -160,19 +161,22 @@ class LiveLearningPlot(QWidget):
         self._ax_rew.clear()
 
         self._ax_succ.set_title(
-            f"Canlı Öğrenme Eğrisi (Hareketli Ortalama, pencere={self._window})",
+            tx(
+                f"Canlı Öğrenme Eğrisi (Hareketli Ortalama, pencere={self._window})",
+                f"Live Learning Curve (Moving Average, window={self._window})",
+            ),
             fontsize=10.5,
             fontweight="bold",
         )
-        self._ax_succ.set_ylabel("Başarı Oranı")
+        self._ax_succ.set_ylabel(tx("Başarı Oranı", "Success Rate"))
         self._ax_succ.set_ylim(-0.05, 1.08)
         self._ax_succ.set_xlim(1, max(2, self._total_episodes))
         self._ax_succ.grid(True, linestyle="--", alpha=0.35)
         self._ax_succ.spines["top"].set_visible(False)
         self._ax_succ.spines["right"].set_visible(False)
 
-        self._ax_rew.set_xlabel("Bölüm")
-        self._ax_rew.set_ylabel("Ortalama Ödül")
+        self._ax_rew.set_xlabel(tx("Bölüm", "Episode"))
+        self._ax_rew.set_ylabel(tx("Ortalama Ödül", "Average Reward"))
         self._ax_rew.set_xlim(1, max(2, self._total_episodes))
         self._ax_rew.grid(True, linestyle="--", alpha=0.35)
         self._ax_rew.spines["top"].set_visible(False)
@@ -203,7 +207,7 @@ class LiveLearningPlot(QWidget):
             ser = self._series[rep]
             if rep not in self._succ_lines:
                 color = AGENT_PALETTE[rep % len(AGENT_PALETTE)]
-                label = f"Tekrar {rep + 1}"
+                label = tx(f"Tekrar {rep + 1}", f"Repeat {rep + 1}")
                 (s_line,) = self._ax_succ.plot([], [], color=color, linewidth=1.8, label=label)
                 (r_line,) = self._ax_rew.plot([], [], color=color, linewidth=1.8, label=label)
                 self._succ_lines[rep] = s_line

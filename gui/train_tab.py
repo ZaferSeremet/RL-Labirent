@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from engine import analysis, storage
 from engine.background import Job
+from engine.i18n import tx
 from engine.trainer import TrainConfig
 
 from . import maze_view
@@ -92,18 +93,18 @@ class TrainTab(QWidget):
         ctrl_row = QHBoxLayout()
         ctrl_row.setSpacing(8)
 
-        self.start_btn = QPushButton("Eğit")
+        self.start_btn = QPushButton(tx("Eğit", "Train"))
         self.start_btn.setMinimumWidth(100)
         self.start_btn.setProperty("accent", "primary")
         self.start_btn.clicked.connect(self.start_training)
 
-        self.stop_btn = QPushButton("Durdur")
+        self.stop_btn = QPushButton(tx("Durdur", "Stop"))
         self.stop_btn.setMinimumWidth(90)
         self.stop_btn.setEnabled(False)
         self.stop_btn.setProperty("accent", "danger")
         self.stop_btn.clicked.connect(self.stop_training)
 
-        self.go_to_test_btn = QPushButton("Teste geç")
+        self.go_to_test_btn = QPushButton(tx("Teste geç", "Go to Test"))
         self.go_to_test_btn.setMinimumWidth(100)
         self.go_to_test_btn.setEnabled(False)
         self.go_to_test_btn.clicked.connect(self._on_go_to_test)
@@ -112,9 +113,9 @@ class TrainTab(QWidget):
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(True)
-        self.progress_bar.setFormat("Hazır")
+        self.progress_bar.setFormat(tx("Hazır", "Ready"))
 
-        self.elapsed_label = QLabel("Süre: 00:00")
+        self.elapsed_label = QLabel(tx("Süre: 00:00", "Elapsed: 00:00"))
         self.elapsed_label.setMinimumWidth(95)
         self.elapsed_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
@@ -125,7 +126,12 @@ class TrainTab(QWidget):
         ctrl_row.addWidget(self.go_to_test_btn)
         root.addLayout(ctrl_row)
 
-        self.status_label = QLabel("Eğitim başlatılmadı. Ayarlar sekmesinden parametreleri seçip 'Eğit'e basın.")
+        self.status_label = QLabel(
+            tx(
+                "Eğitim başlatılmadı. Ayarlar sekmesinden parametreleri seçip 'Eğit'e basın.",
+                "Training has not started. Select parameters in the Settings tab and press 'Train'.",
+            )
+        )
         self.status_label.setWordWrap(True)
         self.status_label.setStyleSheet("color: #475569;")
         root.addWidget(self.status_label)
@@ -136,19 +142,19 @@ class TrainTab(QWidget):
         root.addWidget(splitter, 1)
 
         # Sol: Kayıt seçici + ReplayPlayer
-        left_box = QGroupBox("Bölüm İzleme")
+        left_box = QGroupBox(tx("Bölüm İzleme", "Episode Replay"))
         left_v = QVBoxLayout(left_box)
         left_v.setSpacing(6)
 
         snap_row = QHBoxLayout()
         snap_row.setSpacing(8)
-        snap_row.addWidget(QLabel("Kayıt:"))
+        snap_row.addWidget(QLabel(tx("Kayıt:", "Recording:")))
         self.snapshot_combo = QComboBox()
         self.snapshot_combo.setMinimumWidth(160)
         self.snapshot_combo.currentIndexChanged.connect(self._on_snapshot_selected)
         snap_row.addWidget(self.snapshot_combo, 1)
 
-        self.auto_live_check = QCheckBox("En sonu otomatik göster")
+        self.auto_live_check = QCheckBox(tx("En sonu otomatik göster", "Auto-show latest"))
         self.auto_live_check.setChecked(True)
         snap_row.addWidget(self.auto_live_check)
         left_v.addLayout(snap_row)
@@ -158,7 +164,7 @@ class TrainTab(QWidget):
         splitter.addWidget(left_box)
 
         # Sağ: Canlı öğrenme eğrisi
-        right_box = QGroupBox("Canlı Öğrenme Eğrisi")
+        right_box = QGroupBox(tx("Canlı Öğrenme Eğrisi", "Live Learning Curve"))
         right_v = QVBoxLayout(right_box)
         right_v.setContentsMargins(6, 6, 6, 6)
         self.live_plot = LiveLearningPlot(right_box)
@@ -184,7 +190,7 @@ class TrainTab(QWidget):
         try:
             cfg = self._config_provider()
         except ValueError as exc:
-            QMessageBox.warning(self, "Geçersiz Ayarlar", str(exc))
+            QMessageBox.warning(self, tx("Geçersiz Ayarlar", "Invalid Settings"), str(exc))
             return False
 
         if cfg.results_root is None:
@@ -205,7 +211,7 @@ class TrainTab(QWidget):
         self.progress_bar.setRange(0, total_steps)
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat(f"0 / {total_steps} (%p%)")
-        self.elapsed_label.setText("Süre: 00:00")
+        self.elapsed_label.setText(tx("Süre: 00:00", "Elapsed: 00:00"))
         self.live_plot.reset(total_episodes=self._total_episodes)
 
         self.start_btn.setEnabled(False)
@@ -213,7 +219,10 @@ class TrainTab(QWidget):
         self.go_to_test_btn.setEnabled(False)
         label_part = f" ({cfg.label})" if cfg.label else ""
         self.status_label.setText(
-            f"Başlatılıyor: {cfg.agent_name}{label_part} · {cfg.repeats} tekrar × {cfg.episodes} bölüm..."
+            tx(
+                f"Başlatılıyor: {cfg.agent_name}{label_part} · {cfg.repeats} tekrar × {cfg.episodes} bölüm...",
+                f"Starting: {cfg.agent_name}{label_part} · {cfg.repeats} repeats × {cfg.episodes} episodes...",
+            )
         )
 
         self._job = Job("train", cfg=cfg)
@@ -227,7 +236,12 @@ class TrainTab(QWidget):
         if self._job is not None and self._job.is_alive():
             self._job.stop()
             self.stop_btn.setEnabled(False)
-            self.status_label.setText("Durdurma isteği gönderildi (mevcut bölümün bitmesi bekleniyor)...")
+            self.status_label.setText(
+                tx(
+                    "Durdurma isteği gönderildi (mevcut bölümün bitmesi bekleniyor)...",
+                    "Stop request sent (waiting for the current episode to finish)...",
+                )
+            )
 
     def stop_and_wait(self, timeout_s: float = 3.0) -> None:
         """Pencere kapanırken çalışan eğitimi durdurur ve kısa süre bekler."""
@@ -256,7 +270,8 @@ class TrainTab(QWidget):
             self._timer.stop()
             return
 
-        self.elapsed_label.setText(f"Süre: {_format_elapsed(time.monotonic() - self._start_time)}")
+        elapsed_str = _format_elapsed(time.monotonic() - self._start_time)
+        self.elapsed_label.setText(tx(f"Süre: {elapsed_str}", f"Elapsed: {elapsed_str}"))
         events = self._job.poll()
         if not events:
             if not self._job.is_alive():
@@ -279,7 +294,10 @@ class TrainTab(QWidget):
                 total = self._total_episodes * self._total_repeats
                 self.progress_bar.setRange(0, total)
                 self.status_label.setText(
-                    f"Eğitiliyor: {ev.get('agent', '')} → {self._run_dir.name}"
+                    tx(
+                        f"Eğitiliyor: {ev.get('agent', '')} → {self._run_dir.name}",
+                        f"Training: {ev.get('agent', '')} → {self._run_dir.name}",
+                    )
                 )
             elif etype == "episode":
                 rep = int(ev["repeat"])
@@ -302,7 +320,10 @@ class TrainTab(QWidget):
             elif etype == "repeat_done":
                 rep = int(ev["repeat"])
                 self.status_label.setText(
-                    f"Tekrar {rep + 1}/{self._total_repeats} tamamlandı, model kaydedildi."
+                    tx(
+                        f"Tekrar {rep + 1}/{self._total_repeats} tamamlandı, model kaydedildi.",
+                        f"Repeat {rep + 1}/{self._total_repeats} completed, model saved.",
+                    )
                 )
             elif etype == "done":
                 done_ev = ev
@@ -315,7 +336,10 @@ class TrainTab(QWidget):
             total = self._total_episodes * self._total_repeats
             self.progress_bar.setValue(min(self._completed_episodes, total))
             self.progress_bar.setFormat(
-                f"Tekrar {rep + 1}/{self._total_repeats} · Bölüm {ep}/{self._total_episodes} (%p%)"
+                tx(
+                    f"Tekrar {rep + 1}/{self._total_repeats} · Bölüm {ep}/{self._total_episodes} (%p%)",
+                    f"Repeat {rep + 1}/{self._total_repeats} · Episode {ep}/{self._total_episodes} (%p%)",
+                )
             )
 
         if plot_dirty:
@@ -351,11 +375,12 @@ class TrainTab(QWidget):
         self._job = None
         self.start_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
-        msg = str(ev.get("message") or "Bilinmeyen eğitim hatası")
-        self.status_label.setText(f"Hata: {msg}")
+        msg = str(ev.get("message") or tx("Bilinmeyen eğitim hatası", "Unknown training error"))
+        self.status_label.setText(tx(f"Hata: {msg}", f"Error: {msg}"))
+        err_title = tx("Eğitim Hatası", "Training Error")
         if self._notifier is not None:
-            self._notifier.notify("Eğitim Hatası", msg, error=True)
-        QMessageBox.critical(self, "Eğitim Hatası", msg)
+            self._notifier.notify(err_title, msg, error=True)
+        QMessageBox.critical(self, err_title, msg)
 
     def _on_done(self, ev: dict[str, Any]) -> None:
         self._timer.stop()
@@ -379,17 +404,30 @@ class TrainTab(QWidget):
             analysis.summarize(run_dir)
             analysis.save_all_plots(run_dir)
         except Exception as exc:  # noqa: BLE001
-            summary_err = f" (özet/grafik uyarısı: {exc})"
+            summary_err = tx(
+                f" (özet/grafik uyarısı: {exc})",
+                f" (summary/plot warning: {exc})",
+            )
 
         elapsed = _format_elapsed(time.monotonic() - self._start_time)
         if stopped:
-            title = "Eğitim Durduruldu"
-            self.status_label.setText(f"Eğitim durduruldu ({elapsed}): {run_dir.name}{summary_err}")
+            title = tx("Eğitim Durduruldu", "Training Stopped")
+            self.status_label.setText(
+                tx(
+                    f"Eğitim durduruldu ({elapsed}): {run_dir.name}{summary_err}",
+                    f"Training stopped ({elapsed}): {run_dir.name}{summary_err}",
+                )
+            )
         else:
-            title = "Eğitim Tamamlandı"
+            title = tx("Eğitim Tamamlandı", "Training Completed")
             self.progress_bar.setValue(self.progress_bar.maximum())
-            self.progress_bar.setFormat("Tamamlandı (%p%)")
-            self.status_label.setText(f"Eğitim tamamlandı ({elapsed}): {run_dir.name}{summary_err}")
+            self.progress_bar.setFormat(tx("Tamamlandı (%p%)", "Completed (%p%)"))
+            self.status_label.setText(
+                tx(
+                    f"Eğitim tamamlandı ({elapsed}): {run_dir.name}{summary_err}",
+                    f"Training completed ({elapsed}): {run_dir.name}{summary_err}",
+                )
+            )
 
         self.go_to_test_btn.setEnabled(True)
         if self._notifier is not None:
@@ -413,10 +451,20 @@ class TrainTab(QWidget):
         self.snapshot_combo.blockSignals(True)
         self.snapshot_combo.clear()
         if self._live_file is not None and self._live_file.is_file():
-            lbl = f"En son bölüm (Bölüm {self._live_episode})" if self._live_episode else "En son bölüm"
+            lbl = (
+                tx(
+                    f"En son bölüm (Bölüm {self._live_episode})",
+                    f"Latest episode (Episode {self._live_episode})",
+                )
+                if self._live_episode
+                else tx("En son bölüm", "Latest episode")
+            )
             self.snapshot_combo.addItem(lbl, ("live", self._live_file))
         for ep in sorted(self._snapshot_entries):
-            self.snapshot_combo.addItem(f"Bölüm {ep}", ("snap", ep, self._snapshot_entries[ep]))
+            self.snapshot_combo.addItem(
+                tx(f"Bölüm {ep}", f"Episode {ep}"),
+                ("snap", ep, self._snapshot_entries[ep]),
+            )
 
         if select_key is not None:
             idx = self.snapshot_combo.findData(select_key)
@@ -434,7 +482,10 @@ class TrainTab(QWidget):
                 self.snapshot_combo.setCurrentIndex(i)
                 break
         self.snapshot_combo.blockSignals(False)
-        self._load_trajectory_file(path, title=f"En son bölüm (Bölüm {episode})")
+        self._load_trajectory_file(
+            path,
+            title=tx(f"En son bölüm (Bölüm {episode})", f"Latest episode (Episode {episode})"),
+        )
 
     def _on_snapshot_selected(self) -> None:
         data = self.snapshot_combo.currentData()
@@ -446,7 +497,7 @@ class TrainTab(QWidget):
         else:
             ep = int(data[1])
             path = Path(data[2])
-            title = f"Bölüm {ep}"
+            title = tx(f"Bölüm {ep}", f"Episode {ep}")
         self._load_trajectory_file(path, title=title)
 
     def _load_trajectory_file(self, path: Path, title: str) -> None:
@@ -456,7 +507,7 @@ class TrainTab(QWidget):
             traj = storage.load_trajectory(path)
             self.replay_player.load(traj, title=title, autoplay=True)
         except Exception as exc:  # noqa: BLE001
-            self.status_label.setText(f"Kayıt yüklenemedi: {exc}")
+            self.status_label.setText(tx(f"Kayıt yüklenemedi: {exc}", f"Could not load recording: {exc}"))
 
     def _on_go_to_test(self) -> None:
         if self._run_dir is not None:

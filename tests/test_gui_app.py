@@ -271,7 +271,11 @@ def test_test_tab_and_results_tab_end_to_end(
     assert html_path is not None
     assert html_path.is_file()
     assert html_path.name == "rapor.html"
-    assert (report_out / "rapor.md").is_file()
+    # Her şey seçilen klasörün içindeki tek bir rapor_<tarih> klasöründe
+    assert html_path.parent.parent == report_out
+    assert html_path.parent.name.startswith("rapor_")
+    assert [p.name for p in report_out.iterdir()] == [html_path.parent.name]
+    assert (html_path.parent / "rapor.md").is_file()
     assert len(opened_urls) == 1
 
 

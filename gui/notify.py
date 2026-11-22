@@ -6,6 +6,8 @@ from PySide6.QtCore import QObject
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMainWindow, QStyle, QSystemTrayIcon
 
+from engine.i18n import tx
+
 
 def app_icon(widget: QMainWindow | None = None) -> QIcon:
     """QStyle standart simgelerinden uygulama simgesi döndürür."""
@@ -28,7 +30,7 @@ class Notifier(QObject):
         if not QSystemTrayIcon.isSystemTrayAvailable():
             return
         tray = QSystemTrayIcon(app_icon(self._window), self)
-        tray.setToolTip("RL Labirent")
+        tray.setToolTip(tx("RL Labirent", "RL Maze"))
         tray.show()
         self._tray = tray
 
@@ -50,6 +52,7 @@ class Notifier(QObject):
             and QSystemTrayIcon.isSystemTrayAvailable()
             and QSystemTrayIcon.supportsMessages()
         ):
+            self._tray.setToolTip(tx("RL Labirent", "RL Maze"))
             icon = (
                 QSystemTrayIcon.MessageIcon.Warning
                 if error

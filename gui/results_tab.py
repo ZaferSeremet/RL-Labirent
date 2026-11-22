@@ -27,43 +27,57 @@ from PySide6.QtWidgets import (
 )
 
 from engine import analysis, report, storage
+from engine.i18n import kind_short, tx
 
 from .notify import Notifier
 from .plot_canvas import PlotCanvas
 
-_STATUS_LABELS: dict[str, str] = {
-    "tamamlandi": "Tamamlandı",
-    "durduruldu": "Durduruldu",
-    "egitiliyor": "Eğitiliyor",
-    "hata": "Hata",
+_STATUS_LABELS: dict[str, tuple[str, str]] = {
+    "tamamlandi": ("Tamamlandı", "Completed"),
+    "durduruldu": ("Durduruldu", "Stopped"),
+    "egitiliyor": ("Eğitiliyor", "Training"),
+    "hata": ("Hata", "Error"),
 }
 
-_PLOT_OPTIONS: tuple[tuple[str, str], ...] = (
-    ("learning_success", "Öğrenme Eğrisi — Başarı"),
-    ("learning_reward", "Öğrenme Eğrisi — Ödül"),
-    ("learning_steps", "Öğrenme Eğrisi — Adım"),
-    ("baseline_normal", "Baseline Karşılaştırma — Normal"),
-    ("baseline_buyuk", "Baseline Karşılaştırma — Büyük"),
-    ("generalization", "Genelleme (Normal vs Büyük)"),
-    ("compare_normal", "Çalışma Karşılaştırma — Normal"),
-    ("compare_buyuk", "Çalışma Karşılaştırma — Büyük"),
-)
 
-_COLUMNS = (
-    "Seç",
-    "Ajan",
-    "Etiket",
-    "Durum",
-    "Eğitim Son Başarı",
-    "Test (Normal)",
-    "Test (Büyük)",
-)
+def _status_label(raw: str) -> str:
+    pair = _STATUS_LABELS.get(raw)
+    return tx(*pair) if pair else raw
+
+
+def _plot_options() -> tuple[tuple[str, str], ...]:
+    return (
+        ("learning_success", tx("Öğrenme Eğrisi — Başarı", "Learning Curve — Success")),
+        ("learning_reward", tx("Öğrenme Eğrisi — Ödül", "Learning Curve — Reward")),
+        ("learning_steps", tx("Öğrenme Eğrisi — Adım", "Learning Curve — Steps")),
+        ("baseline_normal", tx("Baseline Karşılaştırma — Normal", "Baseline Comparison — Normal")),
+        ("baseline_buyuk", tx("Baseline Karşılaştırma — Büyük", "Baseline Comparison — Large")),
+        ("generalization", tx("Genelleme (Normal vs Büyük)", "Generalization (Normal vs Large)")),
+        ("compare_normal", tx("Çalışma Karşılaştırma — Normal", "Run Comparison — Normal")),
+        ("compare_buyuk", tx("Çalışma Karşılaştırma — Büyük", "Run Comparison — Large")),
+    )
+
+
+def _columns() -> tuple[str, ...]:
+    return (
+        tx("Seç", "Select"),
+        tx("Ajan", "Agent"),
+        tx("Etiket", "Label"),
+        tx("Durum", "Status"),
+        tx("Eğitim Son Başarı", "Final Training Success"),
+        tx(f"Test ({kind_short('normal')})", f"Test ({kind_short('normal')})"),
+        tx(f"Test ({kind_short('buyuk')})", f"Test ({kind_short('buyuk')})"),
+    )
+
+
+def _runs_word(n: int) -> str:
+    return "run" if n == 1 else "runs"
 
 
 def _fmt_pct(val: float | None) -> str:
     if val is None:
         return "-"
-    return f"%{val * 100:.1f}"
+    return tx(f"%{val * 100:.1f}", f"{val * 100:.1f}%")
 
 
 def _agent_test_success(test_kind_dict: dict[str, dict[str, Any]], agent_name: str) -> float | None:
@@ -112,45 +126,50 @@ class ResultsTab(QWidget):
         toolbar = QHBoxLayout()
         toolbar.setSpacing(8)
 
-        self.refresh_btn = QPushButton("Yenile")
+        self.refresh_btn = QPushButton(tx("Yenile", "Refresh"))
         self.refresh_btn.clicked.connect(self.refresh_runs)
         toolbar.addWidget(self.refresh_btn)
 
-        self.import_btn = QPushButton("İçe aktar")
+        self.import_btn = QPushButton(tx("İçe aktar", "Import"))
         import_menu = QMenu(self.import_btn)
-        import_menu.addAction("Zip dosyası seç...", self.import_zip_dialog)
-        import_menu.addAction("Klasör seç...", self.import_folder_dialog)
+        import_menu.addAction(tx("Zip dosyası seç...", "Select zip file..."), self.import_zip_dialog)
+        import_menu.addAction(tx("Klasör seç...", "Select folder..."), self.import_folder_dialog)
         self.import_btn.setMenu(import_menu)
         toolbar.addWidget(self.import_btn)
 
-        self.export_zip_btn = QPushButton("Zip dışa aktar")
-        self.export_zip_btn.setToolTip("Seçili çalışmayı zip dosyası olarak dışa aktar")
+        self.export_zip_btn = QPushButton(tx("Zip dışa aktar", "Export zip"))
+        self.export_zip_btn.setToolTip(
+            tx("Seçili çalışmayı zip dosyası olarak dışa aktar", "Export the selected run as a zip file")
+        )
         self.export_zip_btn.clicked.connect(self.export_selected_zip)
         toolbar.addWidget(self.export_zip_btn)
 
-        self.export_report_btn = QPushButton("Rapor dışa aktar")
+        self.export_report_btn = QPushButton(tx("Rapor dışa aktar", "Export report"))
         self.export_report_btn.setProperty("accent", "primary")
         self.export_report_btn.clicked.connect(self.export_report_dialog)
         toolbar.addWidget(self.export_report_btn)
 
-        self.open_folder_btn = QPushButton("Klasörü aç")
+        self.open_folder_btn = QPushButton(tx("Klasörü aç", "Open folder"))
         self.open_folder_btn.clicked.connect(self.open_selected_folder)
         toolbar.addWidget(self.open_folder_btn)
 
-        self.delete_btn = QPushButton("Sil")
+        self.delete_btn = QPushButton(tx("Sil", "Delete"))
         self.delete_btn.setProperty("accent", "danger")
         self.delete_btn.setToolTip(
-            "İşaretli çalışmaları (işaret yoksa seçili satırı) Geri Dönüşüm Kutusu'na taşır"
+            tx(
+                "İşaretli çalışmaları (işaret yoksa seçili satırı) Geri Dönüşüm Kutusu'na taşır",
+                "Moves checked runs (or the selected row if none checked) to the Trash / Recycle Bin",
+            )
         )
         self.delete_btn.clicked.connect(lambda: self.delete_runs())
         toolbar.addWidget(self.delete_btn)
 
         toolbar.addStretch(1)
 
-        self.select_all_btn = QPushButton("Tümünü seç")
+        self.select_all_btn = QPushButton(tx("Tümünü seç", "Select all"))
         self.select_all_btn.clicked.connect(lambda: self._set_all_checked(True))
-        self.clear_sel_btn = QPushButton("Temizle")
-        self.clear_sel_btn.setToolTip("Tüm işaretlemeleri kaldır")
+        self.clear_sel_btn = QPushButton(tx("Temizle", "Clear"))
+        self.clear_sel_btn.setToolTip(tx("Tüm işaretlemeleri kaldır", "Uncheck all runs"))
         self.clear_sel_btn.clicked.connect(lambda: self._set_all_checked(False))
         toolbar.addWidget(self.select_all_btn)
         toolbar.addWidget(self.clear_sel_btn)
@@ -162,8 +181,9 @@ class ResultsTab(QWidget):
         root.addWidget(splitter, 1)
 
         # Çalışma listesi
-        self.runs_table = QTableWidget(0, len(_COLUMNS))
-        self.runs_table.setHorizontalHeaderLabels(list(_COLUMNS))
+        cols = _columns()
+        self.runs_table = QTableWidget(0, len(cols))
+        self.runs_table.setHorizontalHeaderLabels(list(cols))
         self.runs_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.runs_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.runs_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -173,7 +193,7 @@ class ResultsTab(QWidget):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        for col in range(3, len(_COLUMNS)):
+        for col in range(3, len(cols)):
             header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
         self.runs_table.itemChanged.connect(self._on_table_item_changed)
         splitter.addWidget(self.runs_table)
@@ -186,9 +206,9 @@ class ResultsTab(QWidget):
 
         plot_bar = QHBoxLayout()
         plot_bar.setSpacing(8)
-        plot_bar.addWidget(QLabel("Grafik:"))
+        plot_bar.addWidget(QLabel(tx("Grafik:", "Plot:")))
         self.plot_combo = QComboBox()
-        for key, title in _PLOT_OPTIONS:
+        for key, title in _plot_options():
             self.plot_combo.addItem(title, key)
         self.plot_combo.setMinimumWidth(260)
         self.plot_combo.currentIndexChanged.connect(self.update_plot)
@@ -251,7 +271,7 @@ class ResultsTab(QWidget):
             agent = summary.get("agent") or (settings.get("agent") or {}).get("name") or "-"
             label = summary.get("label") or (settings.get("train_config") or {}).get("label") or "-"
             raw_durum = str(settings.get("durum") or "-")
-            durum = _STATUS_LABELS.get(raw_durum, raw_durum)
+            durum = _status_label(raw_durum)
 
             egitim = summary.get("egitim") or {}
             test_map = summary.get("test") or {}
@@ -328,42 +348,68 @@ class ResultsTab(QWidget):
         run_dirs = self.checked_run_dirs()
         if not run_dirs:
             self.plot_info_label.setText("")
-            self.plot_canvas.show_message("Grafik çizmek için yukarıdan en az bir çalışma işaretleyin")
+            self.plot_canvas.show_message(
+                tx(
+                    "Grafik çizmek için yukarıdan en az bir çalışma işaretleyin",
+                    "Check at least one run above to display a plot",
+                )
+            )
             return
 
         key = str(self.plot_combo.currentData() or "learning_success")
         loaded = [analysis.load_run(rd) for rd in run_dirs]
+        n_loaded = len(loaded)
 
         try:
             if key == "learning_success":
                 fig = analysis.learning_curve(loaded, metric="success")
-                self.plot_info_label.setText(f"{len(loaded)} çalışma gösteriliyor")
+                self.plot_info_label.setText(
+                    tx(f"{n_loaded} çalışma gösteriliyor", f"Showing {n_loaded} {_runs_word(n_loaded)}")
+                )
             elif key == "learning_reward":
                 fig = analysis.learning_curve(loaded, metric="total_reward")
-                self.plot_info_label.setText(f"{len(loaded)} çalışma gösteriliyor")
+                self.plot_info_label.setText(
+                    tx(f"{n_loaded} çalışma gösteriliyor", f"Showing {n_loaded} {_runs_word(n_loaded)}")
+                )
             elif key == "learning_steps":
                 fig = analysis.learning_curve(loaded, metric="steps")
-                self.plot_info_label.setText(f"{len(loaded)} çalışma gösteriliyor")
+                self.plot_info_label.setText(
+                    tx(f"{n_loaded} çalışma gösteriliyor", f"Showing {n_loaded} {_runs_word(n_loaded)}")
+                )
             elif key == "baseline_normal":
                 fig = analysis.baseline_bars(loaded[0], kind="normal")
-                self.plot_info_label.setText(f"Tek çalışma grafiği: {run_dirs[0].name}")
+                self.plot_info_label.setText(
+                    tx(f"Tek çalışma grafiği: {run_dirs[0].name}", f"Single run plot: {run_dirs[0].name}")
+                )
             elif key == "baseline_buyuk":
                 fig = analysis.baseline_bars(loaded[0], kind="buyuk")
-                self.plot_info_label.setText(f"Tek çalışma grafiği: {run_dirs[0].name}")
+                self.plot_info_label.setText(
+                    tx(f"Tek çalışma grafiği: {run_dirs[0].name}", f"Single run plot: {run_dirs[0].name}")
+                )
             elif key == "generalization":
                 fig = analysis.generalization_plot(loaded[0])
-                self.plot_info_label.setText(f"Tek çalışma grafiği: {run_dirs[0].name}")
+                self.plot_info_label.setText(
+                    tx(f"Tek çalışma grafiği: {run_dirs[0].name}", f"Single run plot: {run_dirs[0].name}")
+                )
             elif key == "compare_normal":
                 fig = analysis.compare_runs(loaded, kind="normal")
-                self.plot_info_label.setText(f"{len(loaded)} çalışma karşılaştırılıyor")
+                self.plot_info_label.setText(
+                    tx(f"{n_loaded} çalışma karşılaştırılıyor", f"Comparing {n_loaded} {_runs_word(n_loaded)}")
+                )
             elif key == "compare_buyuk":
                 fig = analysis.compare_runs(loaded, kind="buyuk")
-                self.plot_info_label.setText(f"{len(loaded)} çalışma karşılaştırılıyor")
+                self.plot_info_label.setText(
+                    tx(f"{n_loaded} çalışma karşılaştırılıyor", f"Comparing {n_loaded} {_runs_word(n_loaded)}")
+                )
             else:
-                self.plot_canvas.show_message(f"Bilinmeyen grafik türü: {key}")
+                self.plot_canvas.show_message(
+                    tx(f"Bilinmeyen grafik türü: {key}", f"Unknown plot type: {key}")
+                )
                 return
         except Exception as exc:  # noqa: BLE001
-            self.plot_canvas.show_message(f"Grafik çizilemedi: {exc}")
+            self.plot_canvas.show_message(
+                tx(f"Grafik çizilemedi: {exc}", f"Failed to draw plot: {exc}")
+            )
             return
 
         self.plot_canvas.set_figure(fig)
@@ -372,14 +418,20 @@ class ResultsTab(QWidget):
 
     def import_zip_dialog(self) -> list[Path]:
         files, _ = QFileDialog.getOpenFileNames(
-            self, "Çalışma Zip Dosyası Seç", "", "Zip Dosyaları (*.zip);;Tüm Dosyalar (*)"
+            self,
+            tx("Çalışma Zip Dosyası Seç", "Select Run Zip File"),
+            "",
+            tx("Zip Dosyaları (*.zip);;Tüm Dosyalar (*)", "Zip Files (*.zip);;All Files (*)"),
         )
         if not files:
             return []
         return self._do_import([Path(f) for f in files])
 
     def import_folder_dialog(self) -> list[Path]:
-        folder = QFileDialog.getExistingDirectory(self, "İçe Aktarılacak Çalışma Klasörü Seç")
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            tx("İçe Aktarılacak Çalışma Klasörü Seç", "Select Run Folder to Import"),
+        )
         if not folder:
             return []
         return self._do_import([Path(folder)])
@@ -388,22 +440,33 @@ class ResultsTab(QWidget):
         try:
             imported = report.import_runs(sources, root=self._get_results_root())
         except Exception as exc:  # noqa: BLE001
-            QMessageBox.warning(self, "İçe Aktarma Hatası", str(exc))
+            QMessageBox.warning(self, tx("İçe Aktarma Hatası", "Import Error"), str(exc))
             return []
         self.refresh_runs()
         if self._notifier is not None:
-            self._notifier.notify("İçe Aktarıldı", f"{len(imported)} çalışma eklendi.")
+            n = len(imported)
+            self._notifier.notify(
+                tx("İçe Aktarıldı", "Imported"),
+                tx(f"{n} çalışma eklendi.", f"{n} {_runs_word(n)} added."),
+            )
         return imported
 
     def export_selected_zip(self) -> Path | None:
         run_dir = self._primary_run_dir()
         if run_dir is None:
-            QMessageBox.warning(self, "Çalışma Seçilmedi", "Lütfen dışa aktarılacak bir çalışma seçin.")
+            QMessageBox.warning(
+                self,
+                tx("Çalışma Seçilmedi", "No Run Selected"),
+                tx("Lütfen dışa aktarılacak bir çalışma seçin.", "Please select a run to export."),
+            )
             return None
 
         default_name = f"{run_dir.name}.zip"
         out_file, _ = QFileDialog.getSaveFileName(
-            self, "Zip Olarak Dışa Aktar", default_name, "Zip Dosyaları (*.zip)"
+            self,
+            tx("Zip Olarak Dışa Aktar", "Export as Zip"),
+            default_name,
+            tx("Zip Dosyaları (*.zip)", "Zip Files (*.zip)"),
         )
         if not out_file:
             return None
@@ -411,11 +474,11 @@ class ResultsTab(QWidget):
         try:
             saved = report.export_run_zip(run_dir, Path(out_file))
         except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "Zip Dışa Aktarma Hatası", str(exc))
+            QMessageBox.critical(self, tx("Zip Dışa Aktarma Hatası", "Zip Export Error"), str(exc))
             return None
 
         if self._notifier is not None:
-            self._notifier.notify("Zip Oluşturuldu", str(saved.name))
+            self._notifier.notify(tx("Zip Oluşturuldu", "Zip Created"), str(saved.name))
         return saved
 
     def export_report_dialog(self) -> Path | None:
@@ -425,21 +488,37 @@ class ResultsTab(QWidget):
             if primary is not None:
                 run_dirs = [primary]
         if not run_dirs:
-            QMessageBox.warning(self, "Çalışma Seçilmedi", "Rapor için en az bir çalışma işaretleyin.")
+            QMessageBox.warning(
+                self,
+                tx("Çalışma Seçilmedi", "No Run Selected"),
+                tx("Rapor için en az bir çalışma işaretleyin.", "Check at least one run for the report."),
+            )
             return None
 
-        out_dir = QFileDialog.getExistingDirectory(self, "Rapor Klasörü Seç")
+        out_dir = QFileDialog.getExistingDirectory(
+            self,
+            tx(
+                "Raporun kaydedileceği yeri seçin (içinde yeni bir klasör açılır)",
+                "Choose where to save the report (a new folder is created inside)",
+            ),
+        )
         if not out_dir:
             return None
 
         try:
             html_path = report.export_report(run_dirs, Path(out_dir))
         except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "Rapor Hatası", str(exc))
+            QMessageBox.critical(self, tx("Rapor Hatası", "Report Error"), str(exc))
             return None
 
         if self._notifier is not None:
-            self._notifier.notify("Rapor Oluşturuldu", str(html_path))
+            self._notifier.notify(
+                tx("Rapor Oluşturuldu", "Report Created"),
+                tx(
+                    f"Klasör: {html_path.parent.name}",
+                    f"Folder: {html_path.parent.name}",
+                ),
+            )
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(html_path.resolve())))
         return html_path
 
@@ -451,7 +530,14 @@ class ResultsTab(QWidget):
                 primary = self._primary_run_dir()
                 run_dirs = [primary] if primary is not None else []
         if not run_dirs:
-            QMessageBox.warning(self, "Çalışma Seçilmedi", "Silinecek çalışmaları işaretleyin ya da bir satır seçin.")
+            QMessageBox.warning(
+                self,
+                tx("Çalışma Seçilmedi", "No Run Selected"),
+                tx(
+                    "Silinecek çalışmaları işaretleyin ya da bir satır seçin.",
+                    "Check the runs to delete or select a row.",
+                ),
+            )
             return []
 
         busy = {Path(p).resolve() for p in self._busy_dirs() if p is not None}
@@ -460,8 +546,11 @@ class ResultsTab(QWidget):
         if blocked:
             QMessageBox.warning(
                 self,
-                "Silinemez",
-                "Şu an eğitilen ya da test edilen çalışma silinemez:\n"
+                tx("Silinemez", "Cannot Delete"),
+                tx(
+                    "Şu an eğitilen ya da test edilen çalışma silinemez:\n",
+                    "A run currently being trained or tested cannot be deleted:\n",
+                )
                 + "\n".join(d.name for d in blocked),
             )
         if not run_dirs:
@@ -470,12 +559,21 @@ class ResultsTab(QWidget):
         if confirm:
             names = "\n".join(f"• {d.name}" for d in run_dirs[:15])
             if len(run_dirs) > 15:
-                names += f"\n… ve {len(run_dirs) - 15} çalışma daha"
+                extra = len(run_dirs) - 15
+                names += tx(
+                    f"\n… ve {extra} çalışma daha",
+                    f"\n… and {extra} more {_runs_word(extra)}",
+                )
+            n = len(run_dirs)
             answer = QMessageBox.question(
                 self,
-                "Çalışmaları Sil",
-                f"{len(run_dirs)} çalışma Geri Dönüşüm Kutusu'na taşınacak:\n\n{names}\n\n"
-                "Gerekirse oradan geri yüklenebilir. Devam edilsin mi?",
+                tx("Çalışmaları Sil", "Delete Runs"),
+                tx(
+                    f"{n} çalışma Geri Dönüşüm Kutusu'na taşınacak:\n\n{names}\n\n"
+                    "Gerekirse oradan geri yüklenebilir. Devam edilsin mi?",
+                    f"{n} {_runs_word(n)} will be moved to the Trash / Recycle Bin:\n\n{names}\n\n"
+                    "They can be restored from there if needed. Continue?",
+                ),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
@@ -494,14 +592,26 @@ class ResultsTab(QWidget):
             if QFile.moveToTrash(str(target)):
                 deleted.append(d)
             else:
-                failed.append(f"{d.name}: Geri Dönüşüm Kutusu'na taşınamadı (dosya açık olabilir)")
+                failed.append(
+                    tx(
+                        f"{d.name}: Geri Dönüşüm Kutusu'na taşınamadı (dosya açık olabilir)",
+                        f"{d.name}: Could not move to Trash / Recycle Bin (a file may be open)",
+                    )
+                )
 
         self.refresh_runs()
         if failed:
-            QMessageBox.warning(self, "Bazıları Silinemedi", "\n".join(failed))
+            QMessageBox.warning(self, tx("Bazıları Silinemedi", "Some Runs Could Not Be Deleted"), "\n".join(failed))
         win = self.window()
         if deleted and hasattr(win, "statusBar"):
-            win.statusBar().showMessage(f"{len(deleted)} çalışma Geri Dönüşüm Kutusu'na taşındı", 5000)
+            n = len(deleted)
+            win.statusBar().showMessage(
+                tx(
+                    f"{n} çalışma Geri Dönüşüm Kutusu'na taşındı",
+                    f"{n} {_runs_word(n)} moved to Trash / Recycle Bin",
+                ),
+                5000,
+            )
         return deleted
 
     def open_selected_folder(self) -> None:

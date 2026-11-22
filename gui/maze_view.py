@@ -25,6 +25,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from engine.i18n import tx
+
 # Renkler (sade ve birbirinden ayırt edilebilir)
 COLOR_BACKGROUND = QColor("#e9ecf1")
 COLOR_WALL = QColor("#2b2f3a")
@@ -40,6 +42,14 @@ COLOR_TEXT = QColor("#5b6270")
 
 # Eylem adları (0 yukarı, 1 sağ, 2 aşağı, 3 sol)
 ACTION_LABELS = ("yukarı", "sağ", "aşağı", "sol")
+ACTION_LABELS_EN = ("up", "right", "down", "left")
+
+
+def action_label(action: int) -> str:
+    """Eylem numarasını o anki dildeki adına çevirir."""
+    if 0 <= action < 4:
+        return tx(ACTION_LABELS[action], ACTION_LABELS_EN[action])
+    return str(action)
 
 MIN_SPEED = 1.0
 MAX_SPEED = 200.0
@@ -139,7 +149,7 @@ class MazeView(QWidget):
             font.setPointSize(max(10, font.pointSize() + 3))
             p.setFont(font)
             p.setPen(COLOR_TEXT)
-            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "Kayıt yok")
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, tx("Kayıt yok", "No recording"))
             p.end()
             return
 
@@ -237,14 +247,14 @@ class ReplayPlayer(QWidget):
 
         # --- arayüz
         self.view = MazeView(self)
-        self.info_label = QLabel("Kayıt yok", self)
+        self.info_label = QLabel(tx("Kayıt yok", "No recording"), self)
         self.info_label.setWordWrap(True)
         self.info_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
 
-        self.play_button = QPushButton("Oynat", self)
+        self.play_button = QPushButton(tx("Oynat", "Play"), self)
         self.play_button.setMinimumWidth(90)
-        self.rewind_button = QPushButton("Başa sar", self)
-        self.window_check = QCheckBox("Görüş penceresi", self)
+        self.rewind_button = QPushButton(tx("Başa sar", "Rewind"), self)
+        self.window_check = QCheckBox(tx("Görüş penceresi", "View window"), self)
         self.window_check.setChecked(True)
 
         self.step_slider = QSlider(Qt.Orientation.Horizontal, self)
@@ -263,7 +273,7 @@ class ReplayPlayer(QWidget):
         buttons.addSpacing(12)
         buttons.addWidget(self.window_check)
         buttons.addStretch(1)
-        buttons.addWidget(QLabel("Hız:", self))
+        buttons.addWidget(QLabel(tx("Hız:", "Speed:"), self))
         buttons.addWidget(self.speed_slider)
         buttons.addWidget(self.speed_label)
 
@@ -382,7 +392,7 @@ class ReplayPlayer(QWidget):
         self._updating = False
 
     def _update_speed_label(self) -> None:
-        self.speed_label.setText(f"{round(self._speed)} adım/sn")
+        self.speed_label.setText(tx(f"{round(self._speed)} adım/sn", f"{round(self._speed)} steps/s"))
 
     def _on_tick(self) -> None:
         dt = self._clock.restart() / 1000.0
@@ -432,26 +442,28 @@ class ReplayPlayer(QWidget):
 
     def _info_text(self) -> str:
         if self._traj is None:
-            return "Kayıt yok"
+            return tx("Kayıt yok", "No recording")
         i, n = self._step, self._n_steps
         parts = []
         if self._title:
             parts.append(self._title)
-        parts.append(f"Adım {i}/{n}")
-        parts.append(f"Toplam ödül: {self._cum_reward[min(i, len(self._cum_reward) - 1)]:+.2f}")
+        parts.append(tx(f"Adım {i}/{n}", f"Step {i}/{n}"))
+        rew = self._cum_reward[min(i, len(self._cum_reward) - 1)]
+        parts.append(tx(f"Toplam ödül: {rew:+.2f}", f"Total reward: {rew:+.2f}"))
         if i > 0 and i - 1 < len(self._actions):
             a = self._actions[i - 1]
-            parts.append(f"Son eylem: {ACTION_LABELS[a] if 0 <= a < 4 else a}")
+            act_str = action_label(a)
+            parts.append(tx(f"Son eylem: {act_str}", f"Last action: {act_str}"))
         else:
-            parts.append("Son eylem: -")
+            parts.append(tx("Son eylem: -", "Last action: -"))
         if i == n and n > 0:
             reached = tuple(self._pos[-1]) == tuple(int(v) for v in self._traj["exit"])
-            parts.append("Çıkışa ulaştı" if reached else "Süre doldu")
+            parts.append(tx("Çıkışa ulaştı", "Reached exit") if reached else tx("Süre doldu", "Timed out"))
         return "  |  ".join(parts)
 
     def _update_controls(self) -> None:
         loaded = self._traj is not None
-        self.play_button.setText("Duraklat" if self.is_playing() else "Oynat")
+        self.play_button.setText(tx("Duraklat", "Pause") if self.is_playing() else tx("Oynat", "Play"))
         self.play_button.setEnabled(loaded and self._n_steps > 0)
         self.rewind_button.setEnabled(loaded)
         self.step_slider.setEnabled(loaded and self._n_steps > 0)

@@ -65,6 +65,8 @@ macOS / Linux: `.venv/bin/python app.py`
 | **Sonuçlar** | Bütün çalışmalar, grafikler, zip dışa/içe aktarma, rapor dışa aktarma, silme (Geri Dönüşüm Kutusu'na) |
 | **Oyna** | Labirenti klavyeyle (ok tuşları / WASD) ajanın gördüğü kadarıyla oyna; problemi hissetmek için iyi |
 
+**Dil:** sağ üstteki **English / Türkçe** düğmesi arayüzü ve bütün çıktıları (grafikler, tablolar, rapor) değiştirir. Seçim hatırlanır. Eğitim ya da test sürerken dil değiştirilemez; dil değişince Ayarlar sekmesindeki girilmiş değerler varsayılana döner.
+
 Test labirentleri herkesin bilgisayarında aynıdır (sabit seed'ler, [configs/ortak_ayarlar.json](configs/ortak_ayarlar.json)); bu yüzden sonuçlar doğrudan karşılaştırılabilir.
 
 ## 3. Kendi ajanını yazma
@@ -104,7 +106,9 @@ Raporu birleştiren kişiye her çalışma için iki şey gönder:
 1. **Sonuç zip'i:** Sonuçlar sekmesinde çalışmayı seç → **Zip dışa aktar**. Zip; ayarları, eğitim günlüğünü, test sonuçlarını, kayıtlı bölümleri ve eğitilmiş modeli içerir.
 2. **Ajan dosyan:** `agents/<algoritman>.py`. Alan kişi bu dosyayı kendi `agents/` klasörüne koymazsa grafikleri görebilir ama modelini test edemez ve oynatamaz.
 
-Alan kişi: Sonuçlar → **İçe aktar** → zip ya da klasör seç. Sonra işaretlediği bütün çalışmalar için **Rapor dışa aktar**: `rapor.html`, `rapor.md`, `grafikler/` ve `tablolar/` içeren bir klasör üretir.
+Alan kişi: Sonuçlar → **İçe aktar** → zip ya da klasör seç.
+
+**Rapor:** rapor kendiliğinden oluşmaz. Sonuçlar'da rapora girecek çalışmaları işaretle → **Rapor dışa aktar** → kaydedilecek yeri seç. Seçtiğin yerin içinde tek bir klasör açılır (`rapor_<tarih>`, İngilizcede `report_<tarih>`); içinde `rapor.html` (tarayıcıda kendiliğinden açılır), `rapor.md`, `grafikler/` ve `tablolar/` bulunur. Test edilmemiş çalışmalarda test tabloları ve baseline grafikleri boş kalır, önce **Test** sekmesinden test et.
 
 Sonuçlar kendi bilgisayarında `results/` klasöründe durur; bu klasör git'e girmez.
 

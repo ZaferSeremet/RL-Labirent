@@ -29,15 +29,16 @@ from PySide6.QtWidgets import (
 
 from agents.base import Agent
 from engine import registry, settings as engine_settings
+from engine.i18n import tx
 from engine.trainer import TrainConfig
 
-_REWARD_META: tuple[tuple[str, str, float, float, float], ...] = (
-    ("step", "Adım ödülü (step)", -100.0, 100.0, 0.01),
-    ("wall", "Duvar çarpma (wall)", -100.0, 100.0, 0.01),
-    ("exit", "Çıkış ödülü (exit)", -100.0, 1000.0, 0.5),
-    ("new_tile", "Yeni kare (new_tile)", -100.0, 100.0, 0.01),
-    ("timeout", "Süre aşımı (timeout)", -100.0, 100.0, 0.05),
-    ("closer", "Çıkışa yaklaşma (closer)", -100.0, 100.0, 0.01),
+_REWARD_META: tuple[tuple[str, tuple[str, str], float, float, float], ...] = (
+    ("step", ("Adım ödülü (step)", "Step reward (step)"), -100.0, 100.0, 0.01),
+    ("wall", ("Duvar çarpma (wall)", "Wall hit (wall)"), -100.0, 100.0, 0.01),
+    ("exit", ("Çıkış ödülü (exit)", "Exit reward (exit)"), -100.0, 1000.0, 0.5),
+    ("new_tile", ("Yeni kare (new_tile)", "New tile (new_tile)"), -100.0, 100.0, 0.01),
+    ("timeout", ("Süre aşımı (timeout)", "Timeout (timeout)"), -100.0, 100.0, 0.05),
+    ("closer", ("Çıkışa yaklaşma (closer)", "Closer to exit (closer)"), -100.0, 100.0, 0.01),
 )
 
 
@@ -45,7 +46,7 @@ def _parse_scalar(raw: str) -> Any:
     """Hiperparametre değerini bool / None / int / float / list / dict / str olarak çözümler."""
     s = raw.strip()
     if not s:
-        raise ValueError("Boş değer verilemez")
+        raise ValueError(tx("Boş değer verilemez", "Value cannot be empty"))
 
     low = s.lower()
     if low == "true":
@@ -58,12 +59,14 @@ def _parse_scalar(raw: str) -> Any:
     # Tırnaklı metin
     if s[0] in ('"', "'"):
         if len(s) < 2 or s[-1] != s[0]:
-            raise ValueError(f"Kapanmamış tırnak: {s}")
+            raise ValueError(tx(f"Kapanmamış tırnak: {s}", f"Unclosed quote: {s}"))
         if s[0] == '"':
             try:
                 return json.loads(s)
             except json.JSONDecodeError as exc:
-                raise ValueError(f"Geçersiz metin değeri ({s}): {exc.msg}") from exc
+                raise ValueError(
+                    tx(f"Geçersiz metin değeri ({s}): {exc.msg}", f"Invalid string value ({s}): {exc.msg}")
+                ) from exc
         return s[1:-1]
 
     # Liste ya da sözlük JSON
@@ -71,7 +74,9 @@ def _parse_scalar(raw: str) -> Any:
         try:
             return json.loads(s)
         except json.JSONDecodeError as exc:
-            raise ValueError(f"Geçersiz JSON değeri ({s}): {exc.msg}") from exc
+            raise ValueError(
+                tx(f"Geçersiz JSON değeri ({s}): {exc.msg}", f"Invalid JSON value ({s}): {exc.msg}")
+            ) from exc
 
     # Tamsayı
     try:
@@ -86,12 +91,17 @@ def _parse_scalar(raw: str) -> Any:
         val = None
     if val is not None:
         if not math.isfinite(val):
-            raise ValueError(f"Geçersiz sayısal değer: {s}")
+            raise ValueError(tx(f"Geçersiz sayısal değer: {s}", f"Invalid numeric value: {s}"))
         return val
 
     # Boşluk içermeyen düz metin değerleri kabul et
     if any(ch.isspace() for ch in s):
-        raise ValueError(f"Boşluk içeren metin tırnak içinde yazılmalı: {s}")
+        raise ValueError(
+            tx(
+                f"Boşluk içeren metin tırnak içinde yazılmalı: {s}",
+                f"Strings containing spaces must be quoted: {s}",
+            )
+        )
     return s
 
 
@@ -105,12 +115,19 @@ def parse_hparams(text: str) -> dict[str, Any]:
         try:
             data = json.loads(stripped)
         except json.JSONDecodeError as exc:
-            raise ValueError(f"Hiperparametre JSON hatası: {exc.msg} (satır {exc.lineno})") from exc
+            raise ValueError(
+                tx(
+                    f"Hiperparametre JSON hatası: {exc.msg} (satır {exc.lineno})",
+                    f"Hyperparameter JSON error: {exc.msg} (line {exc.lineno})",
+                )
+            ) from exc
         if not isinstance(data, dict):
-            raise ValueError("Hiperparametre JSON bir nesne ({...}) olmalı")
+            raise ValueError(
+                tx("Hiperparametre JSON bir nesne ({...}) olmalı", "Hyperparameter JSON must be an object ({...})")
+            )
         for k in data:
             if not isinstance(k, str) or not k.isidentifier():
-                raise ValueError(f"Geçersiz hiperparametre adı: {k!r}")
+                raise ValueError(tx(f"Geçersiz hiperparametre adı: {k!r}", f"Invalid hyperparameter name: {k!r}"))
         return data
 
     result: dict[str, Any] = {}
@@ -119,18 +136,33 @@ def parse_hparams(text: str) -> dict[str, Any]:
         if not line or line.startswith("#"):
             continue
         if "=" not in line:
-            raise ValueError(f"Satır {lineno}: 'anahtar=değer' biçiminde olmalı ({line!r})")
+            raise ValueError(
+                tx(
+                    f"Satır {lineno}: 'anahtar=değer' biçiminde olmalı ({line!r})",
+                    f"Line {lineno}: must be in 'key=value' format ({line!r})",
+                )
+            )
         key_part, val_part = line.split("=", 1)
         key = key_part.strip()
         if not key or not key.isidentifier():
-            raise ValueError(f"Satır {lineno}: geçersiz parametre adı ({key!r})")
+            raise ValueError(
+                tx(
+                    f"Satır {lineno}: geçersiz parametre adı ({key!r})",
+                    f"Line {lineno}: invalid parameter name ({key!r})",
+                )
+            )
         val_str = val_part.strip()
         if not val_str:
-            raise ValueError(f"Satır {lineno}: '{key}' için değer eksik")
+            raise ValueError(
+                tx(
+                    f"Satır {lineno}: '{key}' için değer eksik",
+                    f"Line {lineno}: missing value for '{key}'",
+                )
+            )
         try:
             result[key] = _parse_scalar(val_str)
         except ValueError as exc:
-            raise ValueError(f"Satır {lineno} ('{key}'): {exc}") from exc
+            raise ValueError(tx(f"Satır {lineno} ('{key}'): {exc}", f"Line {lineno} ('{key}'): {exc}")) from exc
     return result
 
 
@@ -208,7 +240,7 @@ class SettingsTab(QWidget):
         root.addLayout(top_grid)
 
         # 1) Ajan ve Eğitim Ayarları
-        agent_box = QGroupBox("Ajan ve Eğitim Ayarları")
+        agent_box = QGroupBox(tx("Ajan ve Eğitim Ayarları", "Agent and Training Settings"))
         agent_form = QFormLayout(agent_box)
         agent_form.setSpacing(8)
         agent_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
@@ -219,70 +251,82 @@ class SettingsTab(QWidget):
         self.agent_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.agent_combo.setMinimumContentsLength(12)
         self.agent_combo.currentIndexChanged.connect(self._on_agent_changed)
-        self.refresh_agents_btn = QPushButton("Yenile")
+        self.refresh_agents_btn = QPushButton(tx("Yenile", "Refresh"))
         self.refresh_agents_btn.setMinimumWidth(72)
         self.refresh_agents_btn.clicked.connect(self.refresh_agents)
         agent_row.addWidget(self.agent_combo, 1)
         agent_row.addWidget(self.refresh_agents_btn)
-        agent_form.addRow("Ajan:", agent_row)
+        agent_form.addRow(tx("Ajan:", "Agent:"), agent_row)
 
         self.obs_mode_label = QLabel("-")
         self.obs_mode_label.setWordWrap(True)
         self.obs_mode_label.setStyleSheet("color: #334155;")
-        agent_form.addRow("Ajan bilgisi:", self.obs_mode_label)
+        agent_form.addRow(tx("Ajan bilgisi:", "Agent info:"), self.obs_mode_label)
 
         self.label_edit = QLineEdit()
-        self.label_edit.setPlaceholderText("ör. adim-cezasi-yuksek (isteğe bağlı)")
-        agent_form.addRow("Etiket:", self.label_edit)
+        self.label_edit.setPlaceholderText(
+            tx("ör. adim-cezasi-yuksek (isteğe bağlı)", "e.g. high-step-penalty (optional)")
+        )
+        agent_form.addRow(tx("Etiket:", "Label:"), self.label_edit)
 
         self.episodes_spin = QSpinBox()
         self.episodes_spin.setRange(1, 1_000_000)
         self.episodes_spin.setSingleStep(100)
         self.episodes_spin.setValue(2000)
-        agent_form.addRow("Bölüm sayısı:", self.episodes_spin)
+        agent_form.addRow(tx("Bölüm sayısı:", "Episodes:"), self.episodes_spin)
 
         default_repeats = int(self._shared.get("egitim", {}).get("tekrar_sayisi", 3))
         self.repeats_spin = QSpinBox()
         self.repeats_spin.setRange(1, 50)
         self.repeats_spin.setValue(default_repeats)
-        agent_form.addRow("Tekrar sayısı:", self.repeats_spin)
+        agent_form.addRow(tx("Tekrar sayısı:", "Repeats:"), self.repeats_spin)
 
         default_seed = int(self._shared.get("egitim", {}).get("seed_baslangic", 0))
         self.seed_spin = QSpinBox()
         self.seed_spin.setRange(0, 2_147_483_647)
         self.seed_spin.setValue(default_seed)
-        agent_form.addRow("Seed:", self.seed_spin)
+        agent_form.addRow(tx("Seed:", "Seed:"), self.seed_spin)
 
         self.snapshots_spin = QSpinBox()
         self.snapshots_spin.setRange(1, 100)
         self.snapshots_spin.setValue(5)
-        self.snapshots_spin.setToolTip("0. tekrarda eşit aralıklı kaydedilecek bölüm sayısı")
-        agent_form.addRow("Kayıt sayısı:", self.snapshots_spin)
+        self.snapshots_spin.setToolTip(
+            tx(
+                "0. tekrarda eşit aralıklı kaydedilecek bölüm sayısı",
+                "Number of evenly spaced episodes to record in repeat 0",
+            )
+        )
+        agent_form.addRow(tx("Kayıt sayısı:", "Recordings:"), self.snapshots_spin)
 
         top_grid.addWidget(agent_box, 0, 0)
 
         # 2) Ödüller
-        reward_box = QGroupBox("Ödül Ayarları")
+        reward_box = QGroupBox(tx("Ödül Ayarları", "Reward Settings"))
         reward_v = QVBoxLayout(reward_box)
         reward_v.setSpacing(8)
-        reward_note = QLabel("Yalnız varsayılandan farklı değerler geçersiz kılınır.")
+        reward_note = QLabel(
+            tx(
+                "Yalnız varsayılandan farklı değerler geçersiz kılınır.",
+                "Only values different from defaults are overridden.",
+            )
+        )
         reward_note.setWordWrap(True)
         reward_note.setStyleSheet("color: #475569; font-size: 12px;")
         reward_v.addWidget(reward_note)
         reward_form = QFormLayout()
         reward_form.setSpacing(8)
         self.reward_spins: dict[str, QDoubleSpinBox] = {}
-        for key, label, lo, hi, step in _REWARD_META:
+        for key, label_pair, lo, hi, step in _REWARD_META:
             sp = QDoubleSpinBox()
             sp.setDecimals(4)
             sp.setRange(lo, hi)
             sp.setSingleStep(step)
             self.reward_spins[key] = sp
-            reward_form.addRow(f"{label}:", sp)
+            reward_form.addRow(f"{tx(*label_pair)}:", sp)
         reward_v.addLayout(reward_form)
 
         rew_btn_row = QHBoxLayout()
-        self.reset_rewards_btn = QPushButton("Varsayılana dön")
+        self.reset_rewards_btn = QPushButton(tx("Varsayılana dön", "Reset to defaults"))
         self.reset_rewards_btn.clicked.connect(self.reset_rewards)
         rew_btn_row.addStretch(1)
         rew_btn_row.addWidget(self.reset_rewards_btn)
@@ -291,7 +335,7 @@ class SettingsTab(QWidget):
         top_grid.addWidget(reward_box, 0, 1)
 
         # 3) Ortam Ayarları
-        env_box = QGroupBox("Eğitim Ortamı Ayarları")
+        env_box = QGroupBox(tx("Eğitim Ortamı Ayarları", "Training Environment Settings"))
         env_v = QVBoxLayout(env_box)
         env_v.setSpacing(8)
         env_form = QFormLayout()
@@ -299,26 +343,30 @@ class SettingsTab(QWidget):
 
         self.maze_size_spin = QSpinBox()
         self.maze_size_spin.setRange(2, 50)
-        env_form.addRow("Labirent boyutu:", self.maze_size_spin)
+        env_form.addRow(tx("Labirent boyutu:", "Maze size:"), self.maze_size_spin)
 
         self.view_radius_spin = QSpinBox()
         self.view_radius_spin.setRange(1, 10)
-        env_form.addRow("Görüş yarıçapı:", self.view_radius_spin)
+        env_form.addRow(tx("Görüş yarıçapı:", "View radius:"), self.view_radius_spin)
 
         env_v.addLayout(env_form)
 
         normal_sz = self._shared.get("test", {}).get("normal", {}).get("maze_size", 8)
         buyuk_sz = self._shared.get("test", {}).get("buyuk", {}).get("maze_size", 12)
         env_note = QLabel(
-            f"Not: Ortak ayardan farklı değerler eğitim ortamını geçersiz kılar. "
-            f"Test boyutları sabittir (Normal: {normal_sz}×{normal_sz}, Büyük: {buyuk_sz}×{buyuk_sz})."
+            tx(
+                f"Not: Ortak ayardan farklı değerler eğitim ortamını geçersiz kılar. "
+                f"Test boyutları sabittir (Normal: {normal_sz}×{normal_sz}, Büyük: {buyuk_sz}×{buyuk_sz}).",
+                f"Note: Values different from shared settings override the training environment. "
+                f"Test sizes are fixed (Normal: {normal_sz}×{normal_sz}, Large: {buyuk_sz}×{buyuk_sz}).",
+            )
         )
         env_note.setWordWrap(True)
         env_note.setStyleSheet("color: #475569; font-size: 12px;")
         env_v.addWidget(env_note)
 
         env_btn_row = QHBoxLayout()
-        self.reset_env_btn = QPushButton("Ortamı varsayılana dön")
+        self.reset_env_btn = QPushButton(tx("Ortamı varsayılana dön", "Reset environment to defaults"))
         self.reset_env_btn.clicked.connect(self._reset_env_defaults)
         env_btn_row.addStretch(1)
         env_btn_row.addWidget(self.reset_env_btn)
@@ -327,7 +375,7 @@ class SettingsTab(QWidget):
         top_grid.addWidget(env_box, 1, 0)
 
         # 4) Hiperparametreler
-        hp_box = QGroupBox("Hiperparametreler")
+        hp_box = QGroupBox(tx("Hiperparametreler", "Hyperparameters"))
         hp_v = QVBoxLayout(hp_box)
         hp_v.setSpacing(6)
 
@@ -338,7 +386,10 @@ class SettingsTab(QWidget):
 
         self.hparams_edit = QPlainTextEdit()
         self.hparams_edit.setPlaceholderText(
-            "Örnek:\nalpha=0.1\ngamma=0.99\nepsilon=1.0\n\nveya JSON:\n{\"alpha\": 0.1, \"gamma\": 0.99}"
+            tx(
+                "Örnek:\nalpha=0.1\ngamma=0.99\nepsilon=1.0\n\nveya JSON:\n{\"alpha\": 0.1, \"gamma\": 0.99}",
+                "Example:\nalpha=0.1\ngamma=0.99\nepsilon=1.0\n\nor JSON:\n{\"alpha\": 0.1, \"gamma\": 0.99}",
+            )
         )
         self.hparams_edit.setMinimumHeight(110)
         self.hparams_edit.textChanged.connect(self._validate_hparams_live)
@@ -359,10 +410,15 @@ class SettingsTab(QWidget):
         # Alt eylem çubuğu
         footer = QHBoxLayout()
         footer.setContentsMargins(4, 2, 4, 2)
-        self.summary_hint = QLabel("Ayarları belirledikten sonra Eğitim sekmesinden eğitimi başlatabilirsiniz.")
+        self.summary_hint = QLabel(
+            tx(
+                "Ayarları belirledikten sonra Eğitim sekmesinden eğitimi başlatabilirsiniz.",
+                "After configuring the settings, you can start training from the Training tab.",
+            )
+        )
         self.summary_hint.setWordWrap(True)
         self.summary_hint.setStyleSheet("color: #475569;")
-        self.go_train_btn = QPushButton("Eğitim Sekmesine Geç")
+        self.go_train_btn = QPushButton(tx("Eğitim Sekmesine Geç", "Go to Training Tab"))
         self.go_train_btn.clicked.connect(self.train_requested.emit)
         footer.addWidget(self.summary_hint, 1)
         footer.addWidget(self.go_train_btn)
@@ -390,7 +446,11 @@ class SettingsTab(QWidget):
         if reg.errors:
             lines = [f"• {mod}: {err}" for mod, err in sorted(reg.errors.items())]
             self.registry_warning_label.setText(
-                "Bazı ajan modülleri yüklenemedi (diğer ajanlar kullanılabilir):\n" + "\n".join(lines)
+                tx(
+                    "Bazı ajan modülleri yüklenemedi (diğer ajanlar kullanılabilir):\n",
+                    "Some agent modules could not be loaded (other agents are available):\n",
+                )
+                + "\n".join(lines)
             )
             self.registry_warning_label.setVisible(True)
         else:
@@ -403,19 +463,38 @@ class SettingsTab(QWidget):
         name = self.selected_agent_name()
         cls = self._learners.get(name) if name else None
         if cls is None:
-            self.obs_mode_label.setText("Öğrenen ajan bulunamadı.")
-            self.hparams_hint_label.setText("Boş bırakılırsa ajanın varsayılan hiperparametreleri kullanılır.")
+            self.obs_mode_label.setText(tx("Öğrenen ajan bulunamadı.", "No learning agent found."))
+            self.hparams_hint_label.setText(
+                tx(
+                    "Boş bırakılırsa ajanın varsayılan hiperparametreleri kullanılır.",
+                    "If left empty, the agent's default hyperparameters are used.",
+                )
+            )
             return
 
-        obs_desc = "simple (tablo)" if cls.obs_mode == "simple" else "full (vektör)"
+        obs_desc = (
+            tx("simple (tablo)", "simple (tabular)")
+            if cls.obs_mode == "simple"
+            else tx("full (vektör)", "full (vector)")
+        )
         self.obs_mode_label.setText(
-            f"Gözlem: {obs_desc}\nSınıf: {cls.__module__}.{cls.__qualname__}"
+            tx(
+                f"Gözlem: {obs_desc}\nSınıf: {cls.__module__}.{cls.__qualname__}",
+                f"Observation: {obs_desc}\nClass: {cls.__module__}.{cls.__qualname__}",
+            )
         )
         hint = _agent_hparams_hint(cls)
         if hint:
-            self.hparams_hint_label.setText(f"Varsayılan parametreler: {hint}")
+            self.hparams_hint_label.setText(
+                tx(f"Varsayılan parametreler: {hint}", f"Default parameters: {hint}")
+            )
         else:
-            self.hparams_hint_label.setText("Boş bırakılırsa ajanın varsayılan hiperparametreleri kullanılır.")
+            self.hparams_hint_label.setText(
+                tx(
+                    "Boş bırakılırsa ajanın varsayılan hiperparametreleri kullanılır.",
+                    "If left empty, the agent's default hyperparameters are used.",
+                )
+            )
 
     def reset_rewards(self) -> None:
         """Ödül alanlarını ortak ayardaki varsayılanlara döndürür."""
@@ -449,7 +528,7 @@ class SettingsTab(QWidget):
         """Mevcut form değerlerinden TrainConfig üretir. Hatalı girişte ValueError yükseltir."""
         agent_name = self.selected_agent_name()
         if not agent_name:
-            raise ValueError("Eğitim için seçili bir ajan yok.")
+            raise ValueError(tx("Eğitim için seçili bir ajan yok.", "No agent selected for training."))
 
         try:
             hparams = parse_hparams(self.hparams_edit.toPlainText())

@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
 def main() -> int:
     from PySide6.QtWidgets import QApplication
 
+    from engine import i18n
     from gui.main_window import MainWindow
     from gui.notify import app_icon
     from gui.theme import apply_light_theme
@@ -21,11 +22,12 @@ def main() -> int:
     app = QApplication.instance()
     if app is None:
         app = QApplication(sys.argv)
-    app.setApplicationName("RL Labirent")
+    i18n.set_language(i18n.load_saved_language())  # son seçilen dil
+    app.setApplicationName(i18n.tx("RL Labirent", "RL Maze"))
     apply_light_theme(app)  # Windows karanlık modda da okunaklı kalsın
     app.setWindowIcon(app_icon())
 
-    window = MainWindow()
+    window = MainWindow(persist_language=True)
     window.show()
     return app.exec()
 

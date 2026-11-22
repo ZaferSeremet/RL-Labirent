@@ -15,6 +15,7 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 
 from . import storage
+from .i18n import kind_label, kind_short, method_label, tx
 from .settings import TEST_KINDS
 
 BASELINE_COLORS: dict[str, str] = {
@@ -33,15 +34,19 @@ AGENT_PALETTE: tuple[str, ...] = (
     "#bcbd22",
 )
 
-_METRIC_META: dict[str, tuple[str, str]] = {
-    "success": ("Başarı Oranı", "Öğrenme Eğrisi — Başarı Oranı"),
-    "total_reward": ("Toplam Ödül", "Öğrenme Eğrisi — Toplam Ödül"),
-    "steps": ("Adım Sayısı", "Öğrenme Eğrisi — Adım Sayısı"),
-}
-
-_KIND_LABELS: dict[str, str] = {
-    "normal": "Normal Labirent",
-    "buyuk": "Büyük Labirent",
+_METRIC_META: dict[str, tuple[tuple[str, str], tuple[str, str]]] = {
+    "success": (
+        ("Başarı Oranı", "Success Rate"),
+        ("Öğrenme Eğrisi — Başarı Oranı", "Learning Curve — Success Rate"),
+    ),
+    "total_reward": (
+        ("Toplam Ödül", "Total Reward"),
+        ("Öğrenme Eğrisi — Toplam Ödül", "Learning Curve — Total Reward"),
+    ),
+    "steps": (
+        ("Adım Sayısı", "Steps"),
+        ("Öğrenme Eğrisi — Adım Sayısı", "Learning Curve — Steps"),
+    ),
 }
 
 
@@ -60,10 +65,6 @@ def _method_color(method: str, agent_idx: int = 0) -> str:
     if method in BASELINE_COLORS:
         return BASELINE_COLORS[method]
     return AGENT_PALETTE[agent_idx % len(AGENT_PALETTE)]
-
-
-def _kind_title(kind: str) -> str:
-    return _KIND_LABELS.get(kind, kind)
 
 
 def _moving_average(values: np.ndarray, window: int) -> np.ndarray:
@@ -255,9 +256,15 @@ def learning_curve(
     """metric: "success" | "total_reward" | "steps". Her çalışma bir eğri: tekrarların
     ortalaması (hareketli ortalama) + gölgeli std."""
     if metric not in _METRIC_META:
-        raise ValueError(f"Bilinmeyen metrik: {metric}. Beklenen: {tuple(_METRIC_META)}")
+        raise ValueError(
+            tx(
+                f"Bilinmeyen metrik: {metric}. Beklenen: {tuple(_METRIC_META)}",
+                f"Unknown metric: {metric}. Expected: {tuple(_METRIC_META)}",
+            )
+        )
 
-    ylabel, title = _METRIC_META[metric]
+    ylabel_pair, title_pair = _METRIC_META[metric]
+    ylabel, title = tx(*ylabel_pair), tx(*title_pair)
     fig = Figure(figsize=(8.5, 4.8), dpi=100)
     ax = fig.add_subplot(111)
 
@@ -300,7 +307,7 @@ def learning_curve(
 
     if plotted:
         ax.set_title(title, fontsize=12, fontweight="bold")
-        ax.set_xlabel("Bölüm")
+        ax.set_xlabel(tx("Bölüm", "Episode"))
         ax.set_ylabel(ylabel)
         if metric == "success":
             ax.set_ylim(-0.02, 1.05)
@@ -310,7 +317,7 @@ def learning_curve(
         ax.legend(frameon=False)
     else:
         ax.set_title(title, fontsize=12, fontweight="bold")
-        _empty_axis(ax, "Eğitim verisi bulunamadı")
+        _empty_axis(ax, tx("Eğitim verisi bulunamadı", "No training data found"))
 
     fig.tight_layout()
     return fig
@@ -320,18 +327,26 @@ def baseline_bars(run: dict[str, Any], kind: str = "normal") -> Figure:
     """Ajan ve baseline'lar: başarı oranı, ort. adım (başarılı), ort. çarpma."""
     fig = Figure(figsize=(12, 4.2), dpi=100)
     axes = fig.subplots(1, 3)
-    kind_tr = _kind_title(kind)
-    fig.suptitle(f"{_run_label(run)} — Test Sonuçları ({kind_tr})", fontsize=12, fontweight="bold")
+    kind_lbl = kind_label(kind)
+    fig.suptitle(
+        tx(
+            f"{_run_label(run)} — Test Sonuçları ({kind_lbl})",
+            f"{_run_label(run)} — Test Results ({kind_lbl})",
+        ),
+        fontsize=12,
+        fontweight="bold",
+    )
 
     trows = (run.get("test") or {}).get(kind) or []
     if not trows:
         for ax in axes:
-            _empty_axis(ax, "Test verisi yok")
+            _empty_axis(ax, tx("Test verisi yok", "No test data"))
         fig.tight_layout()
         return fig
 
     grouped = _group_test_by_method(trows)
     methods = list(grouped.keys())
+    method_labels = [method_label(m) for m in methods]
     stats = {m: _compute_method_stats(rows) for m, rows in grouped.items()}
     colors = [_method_color(m, agent_idx=0) for m in methods]
     x = np.arange(len(methods))
@@ -342,14 +357,15 @@ def baseline_bars(run: dict[str, Any], kind: str = "normal") -> Figure:
     succ_stds = [stats[m]["basari_std"] for m in methods]
     bars0 = ax0.bar(x, succ_vals, yerr=succ_stds if any(s > 0 for s in succ_stds) else None,
                     capsize=4, color=colors, width=0.6)
-    ax0.set_title("Başarı Oranı")
-    ax0.set_ylabel("Oran")
+    ax0.set_title(tx("Başarı Oranı", "Success Rate"))
+    ax0.set_ylabel(tx("Oran", "Rate"))
     ax0.set_ylim(0.0, 1.12)
     ax0.set_xticks(x)
-    ax0.set_xticklabels(methods, rotation=15, ha="right")
+    ax0.set_xticklabels(method_labels, rotation=15, ha="right")
     _style_axis(ax0)
     for bar, val in zip(bars0, succ_vals):
-        ax0.text(bar.get_x() + bar.get_width() / 2, val + 0.02, f"%{val * 100:.1f}",
+        pct_txt = tx(f"%{val * 100:.1f}", f"{val * 100:.1f}%")
+        ax0.text(bar.get_x() + bar.get_width() / 2, val + 0.02, pct_txt,
                  ha="center", va="bottom", fontsize=9)
 
     # 2. Ortalama Adım (yalnız başarılı)
@@ -357,15 +373,15 @@ def baseline_bars(run: dict[str, Any], kind: str = "normal") -> Figure:
     step_raw = [stats[m]["adim"] for m in methods]
     step_vals = [v if v is not None else 0.0 for v in step_raw]
     bars1 = ax1.bar(x, step_vals, color=colors, width=0.6)
-    ax1.set_title("Ort. Adım (Başarılı)")
-    ax1.set_ylabel("Adım")
+    ax1.set_title(tx("Ort. Adım (Başarılı)", "Avg. Steps (Successful)"))
+    ax1.set_ylabel(tx("Adım", "Steps"))
     max_step = max(step_vals, default=0.0)
     ax1.set_ylim(0.0, max(1.0, max_step * 1.18))
     ax1.set_xticks(x)
-    ax1.set_xticklabels(methods, rotation=15, ha="right")
+    ax1.set_xticklabels(method_labels, rotation=15, ha="right")
     _style_axis(ax1)
     for bar, raw in zip(bars1, step_raw):
-        txt = f"{raw:.1f}" if raw is not None else "Yok"
+        txt = f"{raw:.1f}" if raw is not None else tx("Yok", "N/A")
         y_pos = (raw if raw is not None else 0.0) + max(0.03, max_step * 0.02)
         ax1.text(bar.get_x() + bar.get_width() / 2, y_pos, txt, ha="center", va="bottom", fontsize=9)
 
@@ -373,12 +389,12 @@ def baseline_bars(run: dict[str, Any], kind: str = "normal") -> Figure:
     ax2 = axes[2]
     hit_vals = [stats[m]["carpma"] for m in methods]
     bars2 = ax2.bar(x, hit_vals, color=colors, width=0.6)
-    ax2.set_title("Ort. Duvar Çarpması")
-    ax2.set_ylabel("Çarpma")
+    ax2.set_title(tx("Ort. Duvar Çarpması", "Avg. Wall Hits"))
+    ax2.set_ylabel(tx("Çarpma", "Wall Hits"))
     max_hit = max(hit_vals, default=0.0)
     ax2.set_ylim(0.0, max(1.0, max_hit * 1.18))
     ax2.set_xticks(x)
-    ax2.set_xticklabels(methods, rotation=15, ha="right")
+    ax2.set_xticklabels(method_labels, rotation=15, ha="right")
     _style_axis(ax2)
     for bar, val in zip(bars2, hit_vals):
         ax2.text(bar.get_x() + bar.get_width() / 2, val + max(0.03, max_hit * 0.02),
@@ -392,7 +408,11 @@ def generalization_plot(run: dict[str, Any]) -> Figure:
     """Aynı çalışmanın normal ve büyük test sonuçları yan yana (ajan + baseline'lar)."""
     fig = Figure(figsize=(10.5, 4.5), dpi=100)
     axes = fig.subplots(1, 2)
-    fig.suptitle(f"{_run_label(run)} — Genelleme (Normal vs Büyük)", fontsize=12, fontweight="bold")
+    fig.suptitle(
+        f"{_run_label(run)} — {tx('Genelleme', 'Generalization')} ({kind_short('normal')} vs {kind_short('buyuk')})",
+        fontsize=12,
+        fontweight="bold",
+    )
 
     test_data = run.get("test") or {}
     rows_n = test_data.get("normal") or []
@@ -400,7 +420,7 @@ def generalization_plot(run: dict[str, Any]) -> Figure:
 
     if not rows_n and not rows_b:
         for ax in axes:
-            _empty_axis(ax, "Test verisi yok")
+            _empty_axis(ax, tx("Test verisi yok", "No test data"))
         fig.tight_layout()
         return fig
 
@@ -411,6 +431,7 @@ def generalization_plot(run: dict[str, Any]) -> Figure:
     for m in list(grouped_n.keys()) + list(grouped_b.keys()):
         if m not in methods:
             methods.append(m)
+    method_labels = [method_label(m) for m in methods]
 
     stats_n = {m: _compute_method_stats(grouped_n[m]) for m in grouped_n}
     stats_b = {m: _compute_method_stats(grouped_b[m]) for m in grouped_b}
@@ -426,17 +447,19 @@ def generalization_plot(run: dict[str, Any]) -> Figure:
         vb = stats_b[m]["basari"] if m in stats_b else 0.0
         if m in stats_n:
             ax0.bar(x[i] - width / 2, vn, width, color=color, edgecolor="#222222", linewidth=0.6)
-            ax0.text(x[i] - width / 2, vn + 0.02, f"%{vn * 100:.0f}", ha="center", va="bottom", fontsize=8)
+            ax0.text(x[i] - width / 2, vn + 0.02, tx(f"%{vn * 100:.0f}", f"{vn * 100:.0f}%"),
+                     ha="center", va="bottom", fontsize=8)
         if m in stats_b:
             ax0.bar(x[i] + width / 2, vb, width, color=color, alpha=0.65, hatch="//",
                     edgecolor="#222222", linewidth=0.6)
-            ax0.text(x[i] + width / 2, vb + 0.02, f"%{vb * 100:.0f}", ha="center", va="bottom", fontsize=8)
+            ax0.text(x[i] + width / 2, vb + 0.02, tx(f"%{vb * 100:.0f}", f"{vb * 100:.0f}%"),
+                     ha="center", va="bottom", fontsize=8)
 
-    ax0.set_title("Başarı Oranı")
-    ax0.set_ylabel("Oran")
+    ax0.set_title(tx("Başarı Oranı", "Success Rate"))
+    ax0.set_ylabel(tx("Oran", "Rate"))
     ax0.set_ylim(0.0, 1.15)
     ax0.set_xticks(x)
-    ax0.set_xticklabels(methods, rotation=15, ha="right")
+    ax0.set_xticklabels(method_labels, rotation=15, ha="right")
     _style_axis(ax0)
 
     # Sağ: Verimlilik (Adım / En Kısa Yol; 1.0 = en kısa yol)
@@ -450,28 +473,29 @@ def generalization_plot(run: dict[str, Any]) -> Figure:
             val = en if en is not None else 0.0
             eff_vals_all.append(val)
             ax1.bar(x[i] - width / 2, val, width, color=color, edgecolor="#222222", linewidth=0.6)
-            txt = f"{en:.2f}" if en is not None else "Yok"
+            txt = f"{en:.2f}" if en is not None else tx("Yok", "N/A")
             ax1.text(x[i] - width / 2, val + 0.04, txt, ha="center", va="bottom", fontsize=8)
         if m in stats_b:
             val = eb if eb is not None else 0.0
             eff_vals_all.append(val)
             ax1.bar(x[i] + width / 2, val, width, color=color, alpha=0.65, hatch="//",
                     edgecolor="#222222", linewidth=0.6)
-            txt = f"{eb:.2f}" if eb is not None else "Yok"
+            txt = f"{eb:.2f}" if eb is not None else tx("Yok", "N/A")
             ax1.text(x[i] + width / 2, val + 0.04, txt, ha="center", va="bottom", fontsize=8)
 
-    ax1.axhline(1.0, color="#444444", linestyle=":", linewidth=1.0, label="En kısa yol (1.0)")
-    ax1.set_title("Verimlilik (Adım / En Kısa Yol)")
-    ax1.set_ylabel("Oran (düşük = daha iyi)")
+    ax1.axhline(1.0, color="#444444", linestyle=":", linewidth=1.0,
+                label=tx("En kısa yol (1.0)", "Shortest path (1.0)"))
+    ax1.set_title(tx("Verimlilik (Adım / En Kısa Yol)", "Efficiency (Steps / Shortest Path)"))
+    ax1.set_ylabel(tx("Oran (düşük = daha iyi)", "Ratio (lower = better)"))
     max_eff = max(eff_vals_all, default=1.0)
     ax1.set_ylim(0.0, max(1.4, max_eff * 1.2))
     ax1.set_xticks(x)
-    ax1.set_xticklabels(methods, rotation=15, ha="right")
+    ax1.set_xticklabels(method_labels, rotation=15, ha="right")
     _style_axis(ax1)
 
     legend_handles = [
-        Patch(facecolor="#aaaaaa", edgecolor="#222222", label="Normal"),
-        Patch(facecolor="#aaaaaa", alpha=0.65, hatch="//", edgecolor="#222222", label="Büyük"),
+        Patch(facecolor="#aaaaaa", edgecolor="#222222", label=kind_short("normal")),
+        Patch(facecolor="#aaaaaa", alpha=0.65, hatch="//", edgecolor="#222222", label=kind_short("buyuk")),
     ]
     ax0.legend(handles=legend_handles, frameon=False, loc="upper right")
     ax1.legend(handles=legend_handles, frameon=False, loc="upper right")
@@ -484,8 +508,12 @@ def compare_runs(runs: Sequence[dict[str, Any]], kind: str = "normal") -> Figure
     """Birden çok çalışmanın (varyasyonlar ya da farklı ajanlar) test başarısı ve verimliliği."""
     fig = Figure(figsize=(10.5, 4.6), dpi=100)
     axes = fig.subplots(1, 2)
-    kind_tr = _kind_title(kind)
-    fig.suptitle(f"Çalışma Karşılaştırması ({kind_tr})", fontsize=12, fontweight="bold")
+    kind_lbl = kind_label(kind)
+    fig.suptitle(
+        tx(f"Çalışma Karşılaştırması ({kind_lbl})", f"Run Comparison ({kind_lbl})"),
+        fontsize=12,
+        fontweight="bold",
+    )
 
     labels: list[str] = []
     colors: list[str] = []
@@ -519,7 +547,7 @@ def compare_runs(runs: Sequence[dict[str, Any]], kind: str = "normal") -> Figure
 
     if not labels:
         for ax in axes:
-            _empty_axis(ax, "Karşılaştırılacak test verisi yok")
+            _empty_axis(ax, tx("Karşılaştırılacak test verisi yok", "No test data to compare"))
         fig.tight_layout()
         return fig
 
@@ -531,9 +559,9 @@ def compare_runs(runs: Sequence[dict[str, Any]], kind: str = "normal") -> Figure
                     capsize=4, color=colors, width=0.55)
     for bname, bstats in baseline_ref.items():
         ax0.axhline(bstats["basari"], color=_method_color(bname), linestyle="--",
-                    linewidth=1.3, label=f"{bname} ({bstats['basari']:.2f})")
-    ax0.set_title("Test Başarı Oranı")
-    ax0.set_ylabel("Oran")
+                    linewidth=1.3, label=f"{method_label(bname)} ({bstats['basari']:.2f})")
+    ax0.set_title(tx("Test Başarı Oranı", "Test Success Rate"))
+    ax0.set_ylabel(tx("Oran", "Rate"))
     ax0.set_ylim(0.0, 1.15)
     ax0.set_xticks(x)
     ax0.set_xticklabels(labels, rotation=18, ha="right")
@@ -541,7 +569,8 @@ def compare_runs(runs: Sequence[dict[str, Any]], kind: str = "normal") -> Figure
     if baseline_ref:
         ax0.legend(frameon=False, fontsize=8)
     for bar, val in zip(bars0, succ_vals):
-        ax0.text(bar.get_x() + bar.get_width() / 2, val + 0.02, f"%{val * 100:.1f}",
+        ax0.text(bar.get_x() + bar.get_width() / 2, val + 0.02,
+                 tx(f"%{val * 100:.1f}", f"{val * 100:.1f}%"),
                  ha="center", va="bottom", fontsize=9)
 
     # Sağ: Verimlilik
@@ -551,9 +580,9 @@ def compare_runs(runs: Sequence[dict[str, Any]], kind: str = "normal") -> Figure
     for bname, bstats in baseline_ref.items():
         if bstats["verim"] is not None:
             ax1.axhline(bstats["verim"], color=_method_color(bname), linestyle="--",
-                        linewidth=1.3, label=f"{bname} ({bstats['verim']:.2f})")
-    ax1.set_title("Verimlilik (Adım / En Kısa Yol)")
-    ax1.set_ylabel("Oran (düşük = daha iyi)")
+                        linewidth=1.3, label=f"{method_label(bname)} ({bstats['verim']:.2f})")
+    ax1.set_title(tx("Verimlilik (Adım / En Kısa Yol)", "Efficiency (Steps / Shortest Path)"))
+    ax1.set_ylabel(tx("Oran (düşük = daha iyi)", "Ratio (lower = better)"))
     ref_max = max((b["verim"] for b in baseline_ref.values() if b["verim"] is not None), default=1.0)
     max_eff = max(max(eff_vals, default=0.0), ref_max, 1.0)
     ax1.set_ylim(0.0, max_eff * 1.2)
@@ -563,7 +592,7 @@ def compare_runs(runs: Sequence[dict[str, Any]], kind: str = "normal") -> Figure
     if any(b["verim"] is not None for b in baseline_ref.values()):
         ax1.legend(frameon=False, fontsize=8)
     for bar, raw in zip(bars1, eff_raw):
-        txt = f"{raw:.2f}" if raw is not None else "Yok"
+        txt = f"{raw:.2f}" if raw is not None else tx("Yok", "N/A")
         y_pos = (raw if raw is not None else 0.0) + max(0.03, max_eff * 0.02)
         ax1.text(bar.get_x() + bar.get_width() / 2, y_pos, txt, ha="center", va="bottom", fontsize=9)
 

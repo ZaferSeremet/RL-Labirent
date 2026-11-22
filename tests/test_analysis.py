@@ -11,7 +11,15 @@ import numpy as np
 import pytest
 from matplotlib.figure import Figure
 
-from engine import analysis, report, storage
+from engine import analysis, i18n, report, storage
+from tests.i18n_check import figure_turkish_leftovers
+
+
+@pytest.fixture(autouse=True)
+def _restore_turkish_language():
+    i18n.set_language("tr")
+    yield
+    i18n.set_language("tr")
 
 
 # ----------------------------------------------------------------- sahte veri yardımcısı
@@ -274,8 +282,8 @@ def test_plots_single_and_multi_runs(tmp_path: Path) -> None:
     for ax in fig_b.axes:
         assert len(ax.patches) == 3  # ajan, random, sag_el
     labels0 = [t.get_text() for t in fig_b.axes[0].get_xticklabels()]
-    idx_rnd = labels0.index("random")
-    idx_sag = labels0.index("sag_el")
+    idx_rnd = labels0.index("Random")
+    idx_sag = labels0.index("Sağ el")
     from matplotlib.colors import to_hex
     assert to_hex(fig_b.axes[0].patches[idx_rnd].get_facecolor()) == "#7f7f7f"
     assert to_hex(fig_b.axes[0].patches[idx_sag].get_facecolor()) == "#ff7f0e"
@@ -387,30 +395,114 @@ def test_export_report_complete_and_missing_test(tmp_path: Path) -> None:
         include_normal=False, include_buyuk=False,
     )
 
-    # Çoklu rapor (biri eksik testli)
+    # Çoklu rapor (biri eksik testli) — out_dir altında tek rapor_YYYY-MM-DD_HH-MM-SS klasörü
     out_multi = tmp_path / "rapor_coklu"
     html_path = report.export_report([r1, r2, r_no_test], out_multi)
-    assert html_path == out_multi / "rapor.html"
+    report_dir = html_path.parent
+    assert report_dir.parent == out_multi
+    assert re.fullmatch(r"rapor_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:_\d+)?", report_dir.name)
+    assert list(out_multi.iterdir()) == [report_dir]
+    assert html_path == report_dir / "rapor.html"
     assert html_path.is_file()
-    assert (out_multi / "rapor.md").is_file()
-    assert (out_multi / "grafikler").is_dir()
-    assert (out_multi / "tablolar").is_dir()
-    assert len(list((out_multi / "tablolar").glob("*.csv"))) >= 2
+    assert (report_dir / "rapor.md").is_file()
+    assert (report_dir / "grafikler").is_dir()
+    assert (report_dir / "tablolar").is_dir()
+    assert len(list((report_dir / "tablolar").glob("*.csv"))) >= 2
 
     html_text = html_path.read_text(encoding="utf-8")
+    assert '<html lang="tr">' in html_text
     img_srcs = re.findall(r"<img[^>]+src=['\"]([^'\"]+)['\"]", html_text)
     assert len(img_srcs) >= 4
     for src in img_srcs:
         assert not Path(src).is_absolute()
         assert src.startswith("grafikler/")
-        assert (out_multi / src).is_file(), f"Eksik görsel: {src}"
+        assert (report_dir / src).is_file(), f"Eksik görsel: {src}"
 
     # Yalnız test verisi hiç olmayan tek çalışmayla da hata vermemeli
     out_notest = tmp_path / "rapor_testsiz"
     html_notest = report.export_report([r_no_test], out_notest)
+    notest_dir = html_notest.parent
+    assert notest_dir.parent == out_notest
+    assert list(out_notest.iterdir()) == [notest_dir]
+    assert html_notest.name == "rapor.html"
     assert html_notest.is_file()
-    assert (out_notest / "rapor.md").is_file()
-    assert (out_notest / "tablolar" / "ayarlar.csv").is_file()
+    assert (notest_dir / "rapor.md").is_file()
+    assert (notest_dir / "tablolar" / "ayarlar.csv").is_file()
     html_nt_text = html_notest.read_text(encoding="utf-8")
     for src in re.findall(r"<img[^>]+src=['\"]([^'\"]+)['\"]", html_nt_text):
-        assert (out_notest / src).is_file()
+        assert (notest_dir / src).is_file()
+
+
+def test_plots_english_no_turkish_leftovers(tmp_path: Path) -> None:
+    r1_dir = _make_fake_run(tmp_path, agent_name="q_agent", label="base", episodes=80, repeats=2)
+    r2_dir = _make_fake_run(
+        tmp_path, agent_name="sarsa", label="fast", episodes=80, repeats=2,
+        agent_normal_succ_by_rep=(6, 7), agent_buyuk_succ_by_rep=(3, 4),
+    )
+    empty_dir = tmp_path / "empty_run"
+    empty_dir.mkdir()
+    r1 = analysis.load_run(r1_dir)
+    r2 = analysis.load_run(r2_dir)
+    r_empty = analysis.load_run(empty_dir)
+
+    i18n.set_language("en")
+    figs = [
+        *(analysis.learning_curve([r1, r2], metric=m) for m in ("success", "total_reward", "steps")),
+        analysis.learning_curve([r_empty], metric="success"),
+        analysis.baseline_bars(r1, kind="normal"),
+        analysis.baseline_bars(r1, kind="buyuk"),
+        analysis.baseline_bars(r_empty, kind="normal"),
+        analysis.generalization_plot(r1),
+        analysis.generalization_plot(r_empty),
+        analysis.compare_runs([r1, r2], kind="normal"),
+        analysis.compare_runs([r1, r2], kind="buyuk"),
+        analysis.compare_runs([r_empty], kind="normal"),
+    ]
+    for fig in figs:
+        assert figure_turkish_leftovers(fig) == []
+
+
+def test_export_report_english_and_unique_subfolders(tmp_path: Path) -> None:
+    r1 = _make_fake_run(tmp_path, agent_name="q_agent", label="exp1", episodes=60, repeats=2)
+    r2 = _make_fake_run(
+        tmp_path, agent_name="sarsa", label="exp2", episodes=60, repeats=2,
+        agent_normal_succ_by_rep=(6, 7), agent_buyuk_succ_by_rep=(3, 4),
+    )
+
+    i18n.set_language("en")
+    out_dir = tmp_path / "en_reports"
+    html_path = report.export_report([r1, r2], out_dir)
+    report_dir = html_path.parent
+    assert report_dir.parent == out_dir
+    assert re.fullmatch(r"report_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:_\d+)?", report_dir.name)
+    assert list(out_dir.iterdir()) == [report_dir]
+
+    assert html_path == report_dir / "report.html"
+    assert html_path.is_file()
+    assert (report_dir / "report.md").is_file()
+    assert (report_dir / "figures").is_dir()
+    assert (report_dir / "tables").is_dir()
+    assert (report_dir / "tables" / "settings.csv").is_file()
+    assert (report_dir / "tables" / "comparison.csv").is_file()
+    assert (report_dir / "figures" / "learning_success.png").is_file()
+    assert (report_dir / "figures" / "comparison_normal.png").is_file()
+    assert (report_dir / "figures" / "comparison_large.png").is_file()
+
+    html_text = html_path.read_text(encoding="utf-8")
+    assert '<html lang="en">' in html_text
+    assert not re.search(r"[çğıöşüÇĞİÖŞÜ]", html_text)
+    assert "Right-hand" in html_text
+
+    img_srcs = re.findall(r"<img[^>]+src=['\"]([^'\"]+)['\"]", html_text)
+    assert len(img_srcs) >= 4
+    for src in img_srcs:
+        assert src.startswith("figures/")
+        assert (report_dir / src).is_file()
+
+    # İki kez arka arkaya çağrılınca aynı out_dir altında iki ayrı klasör üretir
+    html_path_2 = report.export_report([r1], out_dir)
+    report_dir_2 = html_path_2.parent
+    assert report_dir_2.parent == out_dir
+    assert report_dir_2 != report_dir
+    assert html_path_2.is_file()
+    assert len(list(out_dir.iterdir())) == 2

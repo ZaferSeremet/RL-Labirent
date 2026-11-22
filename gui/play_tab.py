@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from engine.i18n import tx
 from engine.settings import env_config_for, load_shared_config
 from gui.maze_view import (
     ACTION_LABELS,
@@ -32,6 +33,7 @@ from gui.maze_view import (
     COLOR_VISITED,
     COLOR_WALL,
     MazeView,
+    action_label,
 )
 from maze_env import EnvConfig, MazeEnv
 
@@ -100,7 +102,7 @@ class ObservationView(QWidget):
             font = QFont(self.font())
             font.setPointSize(max(10, font.pointSize() + 2))
             p.setFont(font)
-            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "Görüş yok")
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, tx("Görüş yok", "No view"))
             p.end()
             return
         k = self._tiles.shape[0]
@@ -162,29 +164,44 @@ class PlayTab(QWidget):
         self.size_spin = QSpinBox(self)
         self.size_spin.setRange(MIN_MAZE, MAX_MAZE)
         self.size_spin.setValue(min(MAX_MAZE, max(MIN_MAZE, default_size)))
-        self.size_spin.setToolTip("Labirent boyutu (hücre sayısı, 2-20). Yeni labirentle geçerli olur.")
+        self.size_spin.setToolTip(
+            tx(
+                "Labirent boyutu (hücre sayısı, 2-20). Yeni labirentle geçerli olur.",
+                "Maze size (number of cells, 2-20). Takes effect on new maze.",
+            )
+        )
         self.radius_spin = QSpinBox(self)
         self.radius_spin.setRange(MIN_RADIUS, MAX_RADIUS)
         self.radius_spin.setValue(1)
-        self.radius_spin.setToolTip("Görüş yarıçapı (1-3). Yeni labirentle geçerli olur.")
+        self.radius_spin.setToolTip(
+            tx(
+                "Görüş yarıçapı (1-3). Yeni labirentle geçerli olur.",
+                "View radius (1-3). Takes effect on new maze.",
+            )
+        )
         self.seed_edit = QLineEdit(self)
-        self.seed_edit.setPlaceholderText("rastgele")
+        self.seed_edit.setPlaceholderText(tx("rastgele", "random"))
         self.seed_edit.setMaxLength(9)
         self.seed_edit.setFixedWidth(110)
-        self.seed_edit.setToolTip("Boş bırakılırsa her seferinde rastgele; aynı seed aynı labirenti verir.")
-        self.new_button = QPushButton("Yeni labirent", self)
+        self.seed_edit.setToolTip(
+            tx(
+                "Boş bırakılırsa her seferinde rastgele; aynı seed aynı labirenti verir.",
+                "If left empty, random each time; the same seed produces the same maze.",
+            )
+        )
+        self.new_button = QPushButton(tx("Yeni labirent", "New maze"), self)
         for w in (self.size_spin, self.radius_spin, self.seed_edit):
             w.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.new_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         controls = QHBoxLayout()
-        controls.addWidget(QLabel("Labirent boyutu:", self))
+        controls.addWidget(QLabel(tx("Labirent boyutu:", "Maze size:"), self))
         controls.addWidget(self.size_spin)
         controls.addSpacing(10)
-        controls.addWidget(QLabel("Görüş yarıçapı:", self))
+        controls.addWidget(QLabel(tx("Görüş yarıçapı:", "View radius:"), self))
         controls.addWidget(self.radius_spin)
         controls.addSpacing(10)
-        controls.addWidget(QLabel("Seed:", self))
+        controls.addWidget(QLabel(tx("Seed:", "Seed:"), self))
         controls.addWidget(self.seed_edit)
         controls.addSpacing(10)
         controls.addWidget(self.new_button)
@@ -209,7 +226,7 @@ class PlayTab(QWidget):
         self.obs_view = ObservationView(self)
         self.last_action_label = QLabel(self)
         self.last_action_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.obs_group = QGroupBox("Ajanın gördüğü", self)
+        self.obs_group = QGroupBox(tx("Ajanın gördüğü", "Agent's view"), self)
         og = QVBoxLayout(self.obs_group)
         og.addWidget(self.obs_view, 1)
         og.addWidget(self.last_action_label)
@@ -221,13 +238,13 @@ class PlayTab(QWidget):
         self.shortest_label = QLabel("-", self)
         self.seed_label = QLabel("-", self)
         stats = QFormLayout()
-        stats.addRow("Son ödül:", self.last_reward_label)
-        stats.addRow("Toplam ödül:", self.total_reward_label)
-        stats.addRow("Adım / limit:", self.steps_label)
-        stats.addRow("Çarpma:", self.wall_label)
-        stats.addRow("En kısa yol:", self.shortest_label)
-        stats.addRow("Seed:", self.seed_label)
-        self.stats_box = QGroupBox("Durum", self)
+        stats.addRow(tx("Son ödül:", "Last reward:"), self.last_reward_label)
+        stats.addRow(tx("Toplam ödül:", "Total reward:"), self.total_reward_label)
+        stats.addRow(tx("Adım / limit:", "Steps / limit:"), self.steps_label)
+        stats.addRow(tx("Çarpma:", "Wall hits:"), self.wall_label)
+        stats.addRow(tx("En kısa yol:", "Shortest path:"), self.shortest_label)
+        stats.addRow(tx("Seed:", "Seed:"), self.seed_label)
+        self.stats_box = QGroupBox(tx("Durum", "Status"), self)
         self.stats_box.setLayout(stats)
 
         right = QVBoxLayout()
@@ -238,7 +255,13 @@ class PlayTab(QWidget):
         body.addWidget(self.maze_view, 3)
         body.addLayout(right, 2)
 
-        hint = QLabel("Ok tuşları ya da WASD ile hareket et. Duvara çarpmak ceza verir; yeşil kare çıkıştır.", self)
+        hint = QLabel(
+            tx(
+                "Ok tuşları ya da WASD ile hareket et. Duvara çarpmak ceza verir; yeşil kare çıkıştır.",
+                "Move with arrow keys or WASD. Hitting a wall gives a penalty; the green tile is the exit.",
+            ),
+            self,
+        )
         hint.setStyleSheet("color:#5b6270;")
         hint.setFrameShape(QFrame.Shape.NoFrame)
 
@@ -280,7 +303,7 @@ class PlayTab(QWidget):
         text = self.seed_edit.text().strip()
         seed = self._seed_value()
         if text and seed is None:
-            self._set_status("Seed bir tam sayı olmalı.", "timeout")
+            self._set_status(tx("Seed bir tam sayı olmalı.", "Seed must be an integer."), "timeout")
             return
         self.env = MazeEnv(self._build_config())
         _, self._info = self.env.reset(seed=seed)
@@ -288,7 +311,13 @@ class PlayTab(QWidget):
         self.last_reward = 0.0
         self.done = False
         self.success = False
-        self._set_status("Ok tuşları ya da WASD ile hareket et; çıkışı (yeşil kare) bul.", "info")
+        self._set_status(
+            tx(
+                "Ok tuşları ya da WASD ile hareket et; çıkışı (yeşil kare) bul.",
+                "Move with arrow keys or WASD; find the exit (green tile).",
+            ),
+            "info",
+        )
         self._refresh()
         self.maze_view.setFocus()
 
@@ -307,14 +336,22 @@ class PlayTab(QWidget):
             self.success = bool(terminated)
             if terminated:
                 self._set_status(
-                    f"Çıkışa ulaştın! {info['steps']} adım (en kısa yol {info['shortest_path']}), "
-                    f"{info['wall_hits']} çarpma. Devam için \"Yeni labirent\" ya da Enter.",
+                    tx(
+                        f"Çıkışa ulaştın! {info['steps']} adım (en kısa yol {info['shortest_path']}), "
+                        f"{info['wall_hits']} çarpma. Devam için \"Yeni labirent\" ya da Enter.",
+                        f"You reached the exit! {info['steps']} steps (shortest path {info['shortest_path']}), "
+                        f"{info['wall_hits']} wall hits. Press \"New maze\" or Enter to continue.",
+                    ),
                     "success",
                 )
             else:
                 self._set_status(
-                    f"Süre doldu: {info['max_steps']} adımda çıkışa ulaşamadın. "
-                    "Devam için \"Yeni labirent\" ya da Enter.",
+                    tx(
+                        f"Süre doldu: {info['max_steps']} adımda çıkışa ulaşamadın. "
+                        "Devam için \"Yeni labirent\" ya da Enter.",
+                        f"Timed out: could not reach the exit in {info['max_steps']} steps. "
+                        "Press \"New maze\" or Enter to continue.",
+                    ),
                     "timeout",
                 )
         self._refresh()
@@ -369,7 +406,8 @@ class PlayTab(QWidget):
         obs = env.observe_dict()
         self.obs_view.set_observation(obs["tiles"], obs["visited"])
         la = obs["last_action"]
-        self.last_action_label.setText(f"Son eylem: {ACTION_LABELS[la] if 0 <= la < 4 else '-'}")
+        act_text = action_label(la) if 0 <= la < 4 else "-"
+        self.last_action_label.setText(tx(f"Son eylem: {act_text}", f"Last action: {act_text}"))
         info = self._info
         self.last_reward_label.setText(f"{self.last_reward:+.2f}" if info["steps"] else "-")
         self.total_reward_label.setText(f"{self.total_reward:+.2f}")

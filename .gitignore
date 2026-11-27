@@ -8,3 +8,7 @@ kullanici_ayarlari.json
 dagitim/
 # Ödev metni (hocanın materyali; public depoya girmez)
 *.pdf
+
+# Kişisel ajan (public depoya girmez)
+agents/ppo_ajan.py
+tests/test_ppo.py

@@ -31,7 +31,7 @@ Sonuç klasörü biçimi ve okuma/yazma: `engine/storage.py` (hazır, kullan). O
 7. Baseline (`is_baseline`) için `train` → `ValueError` (eğitilmez).
 
 ## tester: `test_run(run_dir, kinds=("normal","buyuk"), progress=None, stop=None) -> {kind: Path}`
-- Ayarları `ayarlar.json`'dan okur. Test ortamı: `env_config_for(kind, obs_mode, shared, reward_overrides, **env_overrides)` (ayarlar.json'daki `train_config` ve `shared` ile; boyut test türünden gelir). Seed'ler `seeds_for(kind, shared)`.
+- Ayarları `ayarlar.json`'dan okur; ancak test labirentleri (`shared["test"]`: seed'ler ve boyutlar) her zaman GÜNCEL ortak ayardan gelir (`tester.test_shared`), ödüller ve ortam ayarları çalışmanın kendi kaydından. Test ortamı: `env_config_for(kind, obs_mode, shared, reward_overrides, **env_overrides)` (ayarlar.json'daki `train_config` ve `shared` ile; boyut test türünden gelir). Seed'ler `seeds_for(kind, shared)`.
 - Ajan: her `model_rep<r>.pkl` için `cls(spec, seed=train_seed + r, **hparams)` + `load`, greedy (`run_episode(..., train=False)`), her seed bir satır, `method` = ajan adı, `is_baseline`=False, `repeat`=r.
 - Baseline'lar: registry'deki bütün baseline'lar, kendi `obs_mode`'larıyla, `seed=0`, tek sefer (`repeat`=0), `is_baseline`=True.
 - `efficiency` = `EpisodeResult.efficiency` (başarısızsa boş).

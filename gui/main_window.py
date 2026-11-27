@@ -1,4 +1,4 @@
-"""Ana pencere: Ayarlar, Eğitim, Test, Sonuçlar ve Oyna sekmelerini birleştirir."""
+"""Ana pencere: Ayarlar, Eğitim, Test, Sonuçlar ve Final Test sekmelerini birleştirir."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QMainWindow, QMessageBox, QPushButton, QTabWidget
 from engine import i18n
 from engine.i18n import tx
 
-from . import play_tab
+from .final_tab import FinalTab
 from .notify import Notifier, app_icon
 from .results_tab import ResultsTab
 from .settings_tab import SettingsTab
@@ -19,8 +19,8 @@ from .test_tab import TestTab
 from .theme import apply_light_theme
 from .train_tab import TrainTab
 
-TAB_TITLES: tuple[str, ...] = ("Ayarlar", "Eğitim", "Test", "Sonuçlar", "Oyna")
-TAB_TITLES_EN: tuple[str, ...] = ("Settings", "Training", "Test", "Results", "Play")
+TAB_TITLES: tuple[str, ...] = ("Ayarlar", "Eğitim", "Test", "Sonuçlar", "Final Test")
+TAB_TITLES_EN: tuple[str, ...] = ("Settings", "Training", "Test", "Results", "Final Test")
 
 
 def tab_titles() -> tuple[str, ...]:
@@ -203,10 +203,10 @@ class MainWindow(QMainWindow):
             results_root=results_root,
             busy_dirs=self._busy_run_dirs,
         )
-        self.play_tab = play_tab.PlayTab(self)
+        self.final_tab = FinalTab(self, results_root=results_root)
 
         for widget, title in zip(
-            (self.settings_tab, self.train_tab, self.test_tab, self.results_tab, self.play_tab),
+            (self.settings_tab, self.train_tab, self.test_tab, self.results_tab, self.final_tab),
             tab_titles(),
         ):
             self.tabs.addTab(widget, title)
@@ -259,6 +259,7 @@ class MainWindow(QMainWindow):
         if not self.test_tab.is_running():
             self.test_tab.refresh_runs(select_dir=run_dir)
         self.results_tab.refresh_runs()
+        self.final_tab.refresh_runs()
 
     def _go_to_test_with_run(self, run_dir: Path) -> None:
         self.tabs.setCurrentWidget(self.test_tab)
@@ -274,9 +275,13 @@ class MainWindow(QMainWindow):
             self.test_tab.refresh_runs()
         elif widget is self.results_tab:
             self.results_tab.refresh_runs()
+        elif widget is self.final_tab:
+            self.final_tab.refresh_runs()
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
         self.train_tab.stop_and_wait(timeout_s=3.0)
         self.test_tab.stop_and_wait(timeout_s=3.0)
+        if hasattr(self.final_tab, "race_player") and hasattr(self.final_tab.race_player, "pause"):
+            self.final_tab.race_player.pause()
         self.notifier.cleanup()
         super().closeEvent(event)

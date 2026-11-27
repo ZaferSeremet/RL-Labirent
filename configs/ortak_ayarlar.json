@@ -14,8 +14,8 @@
     }
   },
   "test": {
-    "normal": { "maze_size": 8, "seeds": [10000, 10099] },
-    "buyuk": { "maze_size": 12, "seeds": [20000, 20099] }
+    "normal": { "maze_size": 8, "seeds": [10000, 10999] },
+    "buyuk": { "maze_size": 12, "seeds": [20000, 20999] }
   },
   "egitim": {
     "seed_baslangic": 0,

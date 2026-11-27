@@ -25,11 +25,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from engine import analysis, registry, settings as engine_settings, storage, tester
+from engine import analysis, race, settings as engine_settings, storage
 from engine.background import Job
 from engine.i18n import kind_label, kind_short, method_label, tx
 
-from . import maze_view
+from . import race_view
 from .notify import Notifier
 
 _STATUS_LABELS: dict[str, tuple[str, str]] = {
@@ -106,7 +106,6 @@ class TestTab(QWidget):
         self._job: Job | None = None
         self._active_run_dir: Path | None = None
         self._current_settings: dict[str, Any] = {}
-        self._baseline_names: set[str] = set()
         self._completed: int = 0
         self._total: int = 1
 
@@ -200,49 +199,41 @@ class TestTab(QWidget):
 
         splitter.addWidget(tables_container)
 
-        # Sağ: Bölüm İzleme
-        replay_box = QGroupBox(tx("Test Bölümü İzleme", "Test Episode Replay"))
+        # Sağ: Yarış İzleme
+        replay_box = QGroupBox(tx("Test Yarışı İzleme", "Test Race Replay"))
         replay_v = QVBoxLayout(replay_box)
         replay_v.setSpacing(6)
 
-        sel_row1 = QHBoxLayout()
-        sel_row1.setSpacing(6)
-        sel_row1.addWidget(QLabel(tx("Tür:", "Type:")))
+        sel_row = QHBoxLayout()
+        sel_row.setSpacing(6)
+        sel_row.addWidget(QLabel(tx("Tür:", "Type:")))
         self.replay_kind_combo = QComboBox()
         self.replay_kind_combo.addItem(kind_short("normal"), "normal")
         self.replay_kind_combo.addItem(kind_short("buyuk"), "buyuk")
         self.replay_kind_combo.currentIndexChanged.connect(self._populate_seeds)
-        sel_row1.addWidget(self.replay_kind_combo)
+        sel_row.addWidget(self.replay_kind_combo)
 
-        sel_row1.addWidget(QLabel(tx("Yöntem:", "Method:")))
-        self.replay_method_combo = QComboBox()
-        self.replay_method_combo.setMinimumWidth(110)
-        self.replay_method_combo.currentIndexChanged.connect(self._on_replay_method_changed)
-        sel_row1.addWidget(self.replay_method_combo, 1)
-        replay_v.addLayout(sel_row1)
-
-        sel_row2 = QHBoxLayout()
-        sel_row2.setSpacing(6)
-        sel_row2.addWidget(QLabel(tx("Tekrar:", "Repeat:")))
+        sel_row.addWidget(QLabel(tx("Tekrar:", "Repeat:")))
         self.replay_repeat_combo = QComboBox()
-        sel_row2.addWidget(self.replay_repeat_combo)
+        sel_row.addWidget(self.replay_repeat_combo)
 
-        sel_row2.addWidget(QLabel(tx("Seed:", "Seed:")))
+        sel_row.addWidget(QLabel(tx("Seed:", "Seed:")))
         self.replay_seed_combo = QComboBox()
         self.replay_seed_combo.setMinimumWidth(90)
-        sel_row2.addWidget(self.replay_seed_combo, 1)
+        sel_row.addWidget(self.replay_seed_combo, 1)
 
         self.replay_btn = QPushButton(tx("İzle", "Replay"))
         self.replay_btn.setMinimumWidth(78)
         self.replay_btn.clicked.connect(self.replay_selected_episode)
-        sel_row2.addWidget(self.replay_btn)
-        replay_v.addLayout(sel_row2)
+        sel_row.addWidget(self.replay_btn)
+        replay_v.addLayout(sel_row)
 
-        self.replay_player = maze_view.ReplayPlayer(replay_box)
-        replay_v.addWidget(self.replay_player, 1)
+        self.race_player = race_view.RacePlayer(replay_box)
+        self.replay_player = self.race_player
+        replay_v.addWidget(self.race_player, 1)
 
         splitter.addWidget(replay_box)
-        splitter.setSizes([760, 580])
+        splitter.setSizes([600, 740])
 
     @staticmethod
     def _create_result_table() -> QTableWidget:
@@ -300,7 +291,6 @@ class TestTab(QWidget):
             self._current_settings = {}
             self._fill_table(self.normal_table, {})
             self._fill_table(self.buyuk_table, {})
-            self.replay_method_combo.clear()
             self.replay_repeat_combo.clear()
             self.replay_seed_combo.clear()
             self.replay_btn.setEnabled(False)
@@ -344,25 +334,10 @@ class TestTab(QWidget):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 table.setItem(row, col, item)
 
-    # ------------------------------------------------------------ bölüm izleme seçicileri
+    # ------------------------------------------------------------ yarış izleme seçicileri
 
     def _populate_replay_selectors(self, run_dir: Path) -> None:
         st = self._current_settings
-        agent_name = str((st.get("agent") or {}).get("name") or "")
-        reg = registry.discover()
-        baselines = [b.name for b in reg.baselines()]
-        self._baseline_names = set(baselines)
-
-        self.replay_method_combo.blockSignals(True)
-        self.replay_method_combo.clear()
-        if agent_name:
-            self.replay_method_combo.addItem(agent_name, agent_name)
-        for bname in baselines:
-            if bname != agent_name:
-                self.replay_method_combo.addItem(f"{method_label(bname)} (baseline)", bname)
-        self.replay_method_combo.blockSignals(False)
-
-        # Mevcut model tekrarları
         n_rep = int((st.get("train_config") or {}).get("repeats", 1))
         avail_reps = [r for r in range(n_rep) if storage.model_path(run_dir, r).is_file()]
         if not avail_reps:
@@ -371,19 +346,11 @@ class TestTab(QWidget):
         for r in avail_reps:
             self.replay_repeat_combo.addItem(tx(f"Tekrar {r}", f"Repeat {r}"), r)
 
-        self._on_replay_method_changed()
         self._populate_seeds()
-
-    def _on_replay_method_changed(self) -> None:
-        method = self.replay_method_combo.currentData()
-        is_base = method in self._baseline_names
-        self.replay_repeat_combo.setEnabled(not is_base)
-        if is_base and self.replay_repeat_combo.count() > 0:
-            self.replay_repeat_combo.setCurrentIndex(0)
 
     def _populate_seeds(self) -> None:
         kind = str(self.replay_kind_combo.currentData() or "normal")
-        shared = self._current_settings.get("shared") or engine_settings.load_shared_config()
+        shared = engine_settings.load_shared_config()  # test labirentleri hep güncel ortak ayardan
         try:
             seeds = engine_settings.seeds_for(kind, shared)
         except Exception:  # noqa: BLE001
@@ -393,29 +360,29 @@ class TestTab(QWidget):
             self.replay_seed_combo.addItem(str(s), int(s))
 
     def replay_selected_episode(self) -> bool:
-        """Seçili tür, yöntem, tekrar ve seed için test bölümünü yeniden oynatır."""
+        """Seçili tür, tekrar ve seed için test yarışını oynatır."""
         run_dir = self.selected_run_dir()
         if run_dir is None:
             return False
         kind = str(self.replay_kind_combo.currentData() or "normal")
-        method = str(self.replay_method_combo.currentData() or "")
-        repeat = int(self.replay_repeat_combo.currentData() or 0)
+        repeat_data = self.replay_repeat_combo.currentData()
+        repeat = int(repeat_data) if repeat_data is not None else 0
         seed = self.replay_seed_combo.currentData()
-        if not method or seed is None:
+        if seed is None:
             return False
 
         try:
-            traj = tester.replay_test_episode(run_dir, kind, method, repeat, int(seed))
-            title = tx(
-                f"{kind_short(kind)} · {method_label(method)} · tekrar {repeat} · seed {seed}",
-                f"{kind_short(kind)} · {method_label(method)} · repeat {repeat} · seed {seed}",
-            )
-            self.replay_player.load(traj, title=title, autoplay=True)
-            self.status_label.setText(tx(f"İzleniyor: {title}", f"Watching: {title}"))
+            race_data = race.race_test_episode(run_dir, kind, repeat, int(seed))
+            # Boyut ve seed'i oynatıcının bilgi satırı zaten yazıyor
+            title = tx(f"{kind_short(kind)} · tekrar {repeat}", f"{kind_short(kind)} · repeat {repeat}")
+            self.race_player.load(race_data, title=title, autoplay=True)
+            self.status_label.setText(tx(f"İzleniyor: {title} · seed {seed}", f"Watching: {title} · seed {seed}"))
             return True
         except Exception as exc:  # noqa: BLE001
-            QMessageBox.warning(self, tx("Bölüm İzlenemedi", "Replay Failed"), str(exc))
+            QMessageBox.warning(self, tx("Yarış İzlenemedi", "Race Replay Failed"), str(exc))
             return False
+
+    race_selected_episode = replay_selected_episode
 
     # ------------------------------------------------------------ arka plan testi
 
@@ -482,8 +449,8 @@ class TestTab(QWidget):
 
     def stop_and_wait(self, timeout_s: float = 3.0) -> None:
         self._timer.stop()
-        if hasattr(self.replay_player, "pause"):
-            self.replay_player.pause()
+        if hasattr(self.race_player, "pause"):
+            self.race_player.pause()
         job = self._job
         if job is None:
             return

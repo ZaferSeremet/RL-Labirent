@@ -77,7 +77,7 @@ def test_window_switches_language_and_rebuilds_tabs(window):
     window.tabs.setCurrentIndex(3)
     assert window.toggle_language()
     assert i18n.get_language() == "en"
-    assert [window.tabs.tabText(i) for i in range(5)] == ["Settings", "Training", "Test", "Results", "Play"]
+    assert [window.tabs.tabText(i) for i in range(5)] == ["Settings", "Training", "Test", "Results", "Final Test"]
     assert window.tabs.currentIndex() == 3
     assert window.windowTitle() == "RL Maze"
     assert window.lang_btn.text() == "Türkçe"
@@ -85,7 +85,7 @@ def test_window_switches_language_and_rebuilds_tabs(window):
     assert window.tabs.tabText(0) == "Ayarlar"
 
 
-TAB_ATTRS = ("settings_tab", "train_tab", "test_tab", "results_tab", "play_tab")
+TAB_ATTRS = ("settings_tab", "train_tab", "test_tab", "results_tab", "final_tab")
 
 
 @pytest.mark.parametrize("attr", TAB_ATTRS)

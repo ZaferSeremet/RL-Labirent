@@ -120,7 +120,7 @@ def test_save_load_roundtrip(tmp_path):
 
 def test_shared_settings():
     shared = load_shared_config()
-    assert len(seeds_for("normal", shared)) == 100 and len(seeds_for("buyuk", shared)) == 100
+    assert len(seeds_for("normal", shared)) == 1000 and len(seeds_for("buyuk", shared)) == 1000
     assert set(seeds_for("normal", shared)).isdisjoint(seeds_for("buyuk", shared))
     assert env_config_for("normal", "full", shared).maze_size == shared["test"]["normal"]["maze_size"]
     assert env_config_for("buyuk", "full", shared).maze_size == shared["test"]["buyuk"]["maze_size"]

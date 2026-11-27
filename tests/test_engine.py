@@ -46,17 +46,18 @@ def short_seeds(monkeypatch):
 
 @pytest.fixture(scope="module")
 def trained(tmp_path_factory):
-    """Bir kez eğitilmiş çalışma (kısa test seed'leriyle) ve eğitim olayları."""
+    """Bir kez eğitilmiş çalışma ve eğitim olayları. Bu modülün testleri boyunca ortak ayar
+    kısa test seed'li bir kopyadır (test labirentleri hep güncel ortak ayardan okunduğu için;
+    ortam değişkeniyle verildiği için arka plan süreci de görür)."""
     mp = pytest.MonkeyPatch()
-    shared = short_shared()
-    mp.setattr(engine_settings, "load_shared_config", lambda path=None: copy.deepcopy(shared))
-    try:
-        root = tmp_path_factory.mktemp("sonuclar")
-        events: list[dict] = []
-        run_dir = train(small_cfg(root), progress=events.append)
-    finally:
-        mp.undo()
-    return run_dir, events
+    cfg_path = tmp_path_factory.mktemp("ayar") / "ortak_ayarlar.json"
+    cfg_path.write_text(json.dumps(short_shared()), encoding="utf-8")
+    mp.setenv(engine_settings.SHARED_CONFIG_ENV, str(cfg_path))
+    root = tmp_path_factory.mktemp("sonuclar")
+    events: list[dict] = []
+    run_dir = train(small_cfg(root), progress=events.append)
+    yield run_dir, events
+    mp.undo()
 
 
 def wait_job(job: Job, timeout: float = 90.0, until=None) -> list[dict]:
@@ -286,12 +287,13 @@ def test_replay_matches_csv(trained, kind):
         replay_test_episode(run_dir, "normal", "yok_ajan", 0, 10000)
 
 
-def test_test_run_with_real_shared_size(tmp_path):
-    """Gerçek ortak ayarın (100 seed) sag_el için başarı oranı 1.0; ajan modeli olmasa da çalışır."""
+def test_test_run_with_real_shared_size(tmp_path, monkeypatch):
+    """Gerçek ortak ayarın (1000 seed) sag_el için başarı oranı 1.0; ajan modeli olmasa da çalışır."""
+    monkeypatch.delenv(engine_settings.SHARED_CONFIG_ENV, raising=False)  # kısa kopya değil, gerçek ayar
     run_dir = train(small_cfg(tmp_path, episodes=3, repeats=1))
     test_run(run_dir, kinds=("normal",))
     rows = read_tests(run_dir, "normal")
-    assert len(rows) == 3 * 100  # 1 ajan tekrarı + 2 baseline, 100 seed
+    assert len(rows) == 3 * 1000  # 1 ajan tekrarı + 2 baseline, 1000 seed
     sag = [r for r in rows if r["method"] == "sag_el"]
     assert all(r["success"] for r in sag)
 

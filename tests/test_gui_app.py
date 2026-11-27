@@ -15,7 +15,7 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox, QPushButton
 
-from engine import settings as engine_settings
+from engine import race, settings as engine_settings
 from engine import storage, trainer
 from engine.trainer import TrainConfig
 from gui.main_window import MainWindow
@@ -87,7 +87,7 @@ def test_main_window_structure_and_tab_order(window: MainWindow):
     assert window.windowTitle() == "RL Labirent"
     assert window.tabs.count() == 5
     titles = [window.tabs.tabText(i) for i in range(window.tabs.count())]
-    assert titles == ["Ayarlar", "Eğitim", "Test", "Sonuçlar", "Oyna"]
+    assert titles == ["Ayarlar", "Eğitim", "Test", "Sonuçlar", "Final Test"]
 
     # Sonuçlar sekmesinde silme butonu var
     result_buttons = [b.text() for b in window.results_tab.findChildren(QPushButton)]
@@ -244,8 +244,12 @@ def test_test_tab_and_results_tab_end_to_end(
     methods_in_table = [test_tab.normal_table.item(r, 0).text() for r in range(test_tab.normal_table.rowCount())]
     assert "ornek" in methods_in_table
 
-    # Bölüm izleme: tek bölüm hatasız oynatıcıya yüklenir
+    # Yarış izleme: seçili bölüm yarışı hatasız oynatıcıya yüklenir
     assert test_tab.replay_selected_episode()
+    loaded_race = test_tab.race_player.race()
+    assert loaded_race is not None
+    assert len(loaded_race["racers"]) >= 2
+    assert test_tab.race_player.n_steps() > 0
 
     # Sonuçlar sekmesi: çalışmayı listeler ve tüm grafik seçeneklerini hatasız çizer
     results_tab = window.results_tab
@@ -346,3 +350,72 @@ def test_results_tab_delete_runs(window: MainWindow, isolated_root: Path, monkey
     (outside / "ayarlar.json").write_text("{}", encoding="utf-8")
     assert rt.delete_runs([outside], confirm=False) == []
     assert outside.exists()
+
+
+def test_final_tab_race_and_controls(
+    window: MainWindow,
+    isolated_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    modal_messages: list[tuple[str, str, str]],
+):
+    small_shared = _small_shared_config()
+    monkeypatch.setattr(engine_settings, "load_shared_config", lambda path=None: copy.deepcopy(small_shared))
+
+    # Modeli olmayan çalışma FinalTab listesine girmemeli
+    no_model_dir = isolated_root / "2026-01-01_00-00-00_modelsiz"
+    (no_model_dir / "kayitlar").mkdir(parents=True)
+    storage.write_settings(no_model_dir, {"agent": {"name": "ornek"}, "durum": "durduruldu"})
+
+    run_dir = trainer.train(
+        TrainConfig(
+            agent_name="ornek",
+            episodes=10,
+            repeats=1,
+            seed=0,
+            label="final-test",
+            env_overrides={"maze_size": 4},
+            snapshots=2,
+            results_root=isolated_root,
+        )
+    )
+
+    ft = window.final_tab
+    window.tabs.setCurrentWidget(ft)
+    assert ft.run_combo.count() == 1
+    assert ft.selected_run_dir() == run_dir
+
+    # Boyut 5 ve seed 123 ile Başlat
+    ft.size_spin.setValue(5)
+    ft.seed_edit.setText("123")
+    ft.start_btn.click()
+    assert not modal_messages, f"Beklenmeyen hata mesajı: {modal_messages}"
+
+    loaded = ft.race_player.race()
+    assert loaded is not None
+    assert loaded["maze_size"] == 5
+    assert loaded["seed"] == 123
+    assert ft.race_player.n_steps() > 0
+
+    # Hızlı boyut düğmeleri
+    ft.size_8_btn.click()
+    assert ft.size_spin.value() == 8
+    ft.size_12_btn.click()
+    assert ft.size_spin.value() == 12
+
+    # Rastgele düğmesi RANDOM_SEED_RANGE içinde doldurur
+    ft.random_seed_btn.click()
+    rnd_seed = int(ft.seed_edit.text())
+    assert race.RANDOM_SEED_RANGE[0] <= rnd_seed <= race.RANDOM_SEED_RANGE[1]
+
+    # Seed boşken Başlat önce rastgele seed yazar ve yarışı başlatır
+    ft.size_spin.setValue(4)
+    ft.seed_edit.setText("")
+    ft.start_btn.click()
+    assert ft.seed_edit.text().isdigit()
+    auto_seed = int(ft.seed_edit.text())
+    assert race.RANDOM_SEED_RANGE[0] <= auto_seed <= race.RANDOM_SEED_RANGE[1]
+    loaded_auto = ft.race_player.race()
+    assert loaded_auto is not None
+    assert loaded_auto["seed"] == auto_seed
+    assert loaded_auto["maze_size"] == 4
+

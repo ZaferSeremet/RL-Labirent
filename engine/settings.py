@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -13,8 +14,13 @@ SHARED_CONFIG_PATH = ROOT / "configs" / "ortak_ayarlar.json"
 TEST_KINDS = ("normal", "buyuk")
 
 
+# Yalnız otomatik testler için: başka bir ortak ayar dosyası (ayrı süreçlere de geçer)
+SHARED_CONFIG_ENV = "RL_LABIRENT_SHARED_CONFIG"
+
+
 def load_shared_config(path: str | Path | None = None) -> dict[str, Any]:
-    with open(path or SHARED_CONFIG_PATH, encoding="utf-8") as f:
+    path = path or os.environ.get(SHARED_CONFIG_ENV) or SHARED_CONFIG_PATH
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 

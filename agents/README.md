@@ -8,7 +8,7 @@
    ```bash
    .venv\Scripts\python tools\ajan_dene.py --agent <name> --episodes 2000
    ```
-   Eğitim sırasında başarı oranını yazdırır, sonunda 100 test labirentinde random ve sağ el ile karşılaştırır.
+   Eğitim sırasında başarı oranını yazdırır, sonunda 1000 test labirentinde random ve sağ el ile karşılaştırır.
 
 `agents/` klasörüne koyduğun ve `Agent`'tan türeyen her sınıf otomatik bulunur. Arayüz geldiğinde aynı dosya değişmeden orada da çalışacak.
 

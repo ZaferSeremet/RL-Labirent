@@ -1,4 +1,4 @@
-"""MazeView, ReplayPlayer ve PlayTab testleri (offscreen Qt, pytest-qt yok)."""
+"""MazeView ve ReplayPlayer testleri (offscreen Qt, pytest-qt yok)."""
 
 import os
 
@@ -6,7 +6,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import QCoreApplication
 from PySide6.QtGui import QColor
 from PySide6.QtTest import QSignalSpy, QTest
 from PySide6.QtWidgets import QApplication
@@ -15,7 +15,6 @@ from agents.base import EnvSpec
 from baselines import RightHandAgent
 from engine.episode import run_episode
 from gui.maze_view import MazeView, ReplayPlayer
-from gui.play_tab import PlayTab
 from maze_env import MazeEnv
 
 _app = QApplication.instance() or QApplication([])
@@ -283,166 +282,3 @@ def test_replay_large_recording_fast():
     assert time.perf_counter() - t0 < 5.0
     assert "Adım 0/900" in p.info_label.text()
 
-
-# ------------------------------------------------------------------- PlayTab
-
-
-def make_tab(seed: int = 11, size: int = 5) -> PlayTab:
-    t = PlayTab()
-    t.size_spin.setValue(size)
-    t.seed_edit.setText(str(seed))
-    t.new_maze()
-    t.resize(1000, 650)
-    return t
-
-
-def free_dir(env, want_wall: bool) -> int:
-    rs = env.get_render_state()
-    y, x = rs["agent"]
-    for a, (dy, dx) in enumerate(((-1, 0), (0, 1), (1, 0), (0, -1))):
-        is_wall = bool(rs["grid"][y + dy, x + dx])
-        if is_wall == want_wall:
-            return a
-    raise AssertionError
-
-
-KEY_FOR = {0: Qt.Key.Key_Up, 1: Qt.Key.Key_Right, 2: Qt.Key.Key_Down, 3: Qt.Key.Key_Left}
-WASD_FOR = {0: Qt.Key.Key_W, 1: Qt.Key.Key_D, 2: Qt.Key.Key_S, 3: Qt.Key.Key_A}
-
-
-def test_play_defaults_and_controls():
-    from engine.settings import load_shared_config
-
-    t = PlayTab()
-    assert t.size_spin.minimum() == 2 and t.size_spin.maximum() == 20
-    assert t.size_spin.value() == load_shared_config()["env"]["maze_size"]
-    assert t.radius_spin.minimum() == 1 and t.radius_spin.maximum() == 3
-    assert t.seed_edit.text() == ""
-    assert t.env is not None
-    assert t.maze_view.show_window()
-    assert t.steps_label.text().startswith("0 / ")
-
-
-def test_play_key_moves_agent_arrows_and_wasd():
-    t = make_tab()
-    for keys in (KEY_FOR, WASD_FOR):
-        t.new_maze()
-        a = free_dir(t.env, want_wall=False)
-        before = t.env.get_render_state()["agent"]
-        QTest.keyClick(t, keys[a])
-        after = t.env.get_render_state()["agent"]
-        assert after != before
-        assert t.env.get_render_state()["steps"] == 1
-        assert t.maze_view._agent == after
-        assert t.steps_label.text().startswith("1 / ")
-        # ajanın gördüğü pencere ortada ajan ve k x k
-        k = t.env.window_size
-        assert t.obs_view._tiles.shape == (k, k)
-
-
-def test_play_wall_hit_counts():
-    t = make_tab()
-    a = free_dir(t.env, want_wall=True)
-    before = t.env.get_render_state()["agent"]
-    QTest.keyClick(t, KEY_FOR[a])
-    assert t.env.get_render_state()["agent"] == before
-    assert t.wall_label.text() == "1"
-    assert t.total_reward < 0
-    QTest.keyClick(t, KEY_FOR[a])
-    assert t.wall_label.text() == "2"
-
-
-def test_play_seed_reproducible_and_random():
-    t = make_tab(seed=77)
-    g1 = t.env.get_render_state()["grid"].copy()
-    s1 = t.env.get_render_state()["exit"]
-    t.new_maze()
-    g2 = t.env.get_render_state()["grid"]
-    assert np.array_equal(g1, g2) and t.env.get_render_state()["exit"] == s1
-    assert t.seed_label.text() == "77"
-    t.seed_edit.setText("78")
-    t.new_maze()
-    assert not np.array_equal(g1, t.env.get_render_state()["grid"]) or t.seed_label.text() == "78"
-    assert t.seed_label.text() == "78"
-    # boş seed: rastgele (iki çağrı farklı labirent seed'i verir)
-    t.seed_edit.setText("")
-    t.new_maze()
-    a = t.seed_label.text()
-    t.new_maze()
-    assert a != t.seed_label.text()
-
-
-def test_play_size_and_radius_apply_on_new_maze():
-    t = PlayTab()
-    t.size_spin.setValue(3)
-    t.radius_spin.setValue(2)
-    t.new_maze()
-    assert t.env.config.maze_size == 3 and t.env.config.view_radius == 2
-    assert t.obs_view._tiles.shape == (5, 5)
-    assert t.env.get_render_state()["grid"].shape == (7, 7)
-
-
-def solve_path(env):
-    """BFS ile başlangıçtan çıkışa eylem dizisi (test için)."""
-    rs = env.get_render_state()
-    grid, start, goal = rs["grid"], rs["agent"], rs["exit"]
-    prev = {start: None}
-    q = [start]
-    while q:
-        cur = q.pop(0)
-        if cur == goal:
-            break
-        for a, (dy, dx) in enumerate(((-1, 0), (0, 1), (1, 0), (0, -1))):
-            nxt = (cur[0] + dy, cur[1] + dx)
-            if not grid[nxt] and nxt not in prev:
-                prev[nxt] = (cur, a)
-                q.append(nxt)
-    acts = []
-    cur = goal
-    while prev[cur] is not None:
-        cur, a = prev[cur]
-        acts.append(a)
-    return acts[::-1]
-
-
-def test_play_finish_message_and_new_maze():
-    t = make_tab(seed=5, size=3)
-    for a in solve_path(t.env):
-        QTest.keyClick(t, KEY_FOR[a])
-    assert t.done and t.success
-    assert "Çıkışa ulaştın" in t.status_label.text()
-    steps = t.env.get_render_state()["steps"]
-    QTest.keyClick(t, Qt.Key.Key_Left)  # bitti: hareket yok, hata yok
-    assert t.env.get_render_state()["steps"] == steps
-    QTest.keyClick(t, Qt.Key.Key_Return)  # Enter yeni labirent
-    assert not t.done
-    assert t.steps_label.text().startswith("0 / ")
-
-
-def test_play_timeout_message():
-    t = PlayTab()
-    t.size_spin.setValue(2)
-    t.seed_edit.setText("9")
-    t.new_maze()
-    a = free_dir(t.env, want_wall=True)
-    limit = t.env.max_steps
-    for _ in range(limit):
-        QTest.keyClick(t, KEY_FOR[a])
-    assert t.done and not t.success
-    assert "Süre doldu" in t.status_label.text()
-    assert t.wall_label.text() == str(limit)
-
-
-def test_play_grab_and_focus():
-    t = make_tab()
-    t.show()
-    QTest.qWait(50)
-    img = t.grab().toImage()
-    assert not img.isNull() and img.width() > 0
-    # sekme açılınca klavye odağı labirentte
-    QTest.qWait(30)
-    assert QApplication.focusWidget() in (t.maze_view, None) or t.maze_view.hasFocus()
-    assert t.maze_view.focusPolicy() == Qt.FocusPolicy.StrongFocus
-    t.new_maze()
-    assert t.maze_view.hasFocus() or not t.isActiveWindow()
-    t.close()

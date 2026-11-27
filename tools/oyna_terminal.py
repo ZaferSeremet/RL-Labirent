@@ -4,7 +4,7 @@ Kullanım:
     .venv\\Scripts\\python tools\\oyna_terminal.py [--seed 123] [--size 8] [--radius 1]
 
 Komutlar: w yukarı, d sağ, s aşağı, a sol (Enter ile), r yeni labirent, q çıkış.
-Arayüzdeki "Oyna" sekmesi gelene kadar geçici araç.
+Problemi elle hissetmek için (arayüzde klavyeyle oynama sekmesi yok).
 """
 
 from __future__ import annotations

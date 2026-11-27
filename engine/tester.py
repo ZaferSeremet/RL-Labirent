@@ -17,12 +17,19 @@ from .registry import discover
 ProgressFn = Callable[[dict[str, Any]], None]
 
 
+def test_shared(settings: dict[str, Any]) -> dict[str, Any]:
+    """Testte kullanılacak ortak ayar: ortam ve ödüller çalışmanın kendi kaydından
+    (eğitildiği koşullar), test labirentleri (seed'ler ve boyutlar) GÜNCEL ortak ayardan.
+    Böylece eski çalışmalar da yeniden eğitilmeden güncel test setinde test edilir."""
+    return {**settings["shared"], "test": _settings.load_shared_config()["test"]}
+
+
 def _env_for(kind: str, cls: type[Agent], settings: dict[str, Any]) -> MazeEnv:
     tc = settings.get("train_config", {})
     # Boyut test türünden gelir; eğitimdeki maze_size geçersiz kılması testlere taşınmaz
     overrides = {k: v for k, v in (tc.get("env_overrides") or {}).items() if k != "maze_size"}
     return MazeEnv(
-        _settings.env_config_for(kind, cls.obs_mode, settings["shared"],
+        _settings.env_config_for(kind, cls.obs_mode, test_shared(settings),
                                  tc.get("reward_overrides") or {}, **overrides)
     )
 
@@ -60,7 +67,7 @@ def test_run(
             raise ValueError(f"Bilinmeyen test türü: {k} (olması gerekenler: {_settings.TEST_KINDS})")
     emit: ProgressFn = progress or (lambda _ev: None)
     settings = storage.read_settings(run_dir)
-    shared = settings["shared"]
+    shared = test_shared(settings)
     reg = discover()
     agent_cls = reg.get(settings["agent"]["name"])  # yoksa anlaşılır KeyError
     models = _models(run_dir, settings)

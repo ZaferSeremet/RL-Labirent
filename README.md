@@ -72,9 +72,9 @@ macOS / Linux: `.venv/bin/python app.py`
 |---|---|
 | **Ayarlar** | Ajanı seç, etiket ver (ör. `ana`, `adim-cezasi-0.05`), bölüm sayısı, tekrar sayısı (varsayılan 3), ödüller, hiperparametreler |
 | **Eğitim** | Eğit / Durdur. Sağda canlı öğrenme eğrisi; eğitim sırasında kaydedilen bölümleri istediğin hızda izle (hız yalnız izlemeyi etkiler, eğitimi değil) |
-| **Test** | Eğitilmiş bir çalışmayı 100 normal (8x8) ve 100 büyük (12x12) labirentte random ve sağ el ile karşılaştırır. Bitince bildirim gelir. İstediğin test bölümünü izleyebilirsin |
+| **Test** | Eğitilmiş bir çalışmayı 1000 normal (8x8) ve 1000 büyük (12x12) labirentte random ve sağ el ile karşılaştırır. Bitince bildirim gelir. İstediğin test labirentinde ajanı, sağ eli ve random'u aynı anda, farklı renklerle izleyebilirsin |
 | **Sonuçlar** | Bütün çalışmalar, grafikler, zip dışa/içe aktarma, rapor dışa aktarma, silme (Geri Dönüşüm Kutusu'na) |
-| **Oyna** | Labirenti klavyeyle (ok tuşları / WASD) ajanın gördüğü kadarıyla oyna; problemi hissetmek için iyi |
+| **Final Test** | Demo: eğitilmiş bir ajanı seçtiğin boyutta ve seed'de (ya da rastgele) hiç görmediği bir labirentte sağ el ve random ile yarıştırır; durum tablosunda kimin ne yaptığı görünür |
 
 **Dil:** sağ üstteki **English / Türkçe** düğmesi arayüzü ve bütün çıktıları (grafikler, tablolar, rapor) değiştirir. Seçim hatırlanır. Eğitim ya da test sürerken dil değiştirilemez; dil değişince Ayarlar sekmesindeki girilmiş değerler varsayılana döner.
 
@@ -105,10 +105,10 @@ Metodlar, gözlemin anlamı ve kurallar: [agents/README.md](agents/README.md).
 Herkesin izleyeceği adımlar ve sonuç tabloları: [DENEY_AKISI.md](DENEY_AKISI.md). Kısaca:
 
 1. **Ana eğitim:** rastgele labirentlerde, ortak ayarlarla (etiket: `ana`).
-2. **Test:** 100 normal + 100 büyük labirent, random ve sağ el ile karşılaştırma.
+2. **Test:** 1000 normal + 1000 büyük labirent, random ve sağ el ile karşılaştırma.
 3. **Varyasyonlar:** sıfırdan **en az 2 kez** daha eğit, her seferinde **tek bir şeyi** değiştir (ör. adım cezası, duvar cezası, çıkışa yaklaşma ödülü `closer`). Etikete neyi değiştirdiğini yaz.
 4. Varyasyonları aynı normal ve büyük labirentlerde test et.
-5. En iyi ajanlar demoda hiç görmediği bir labirentte oynatılır.
+5. En iyi ajanlar demoda **Final Test** sekmesinde hiç görmediği bir labirentte oynatılır.
 
 ## 5. Sonuçları gönderme
 
@@ -159,7 +159,7 @@ baselines/    random, sağ el takibi
 engine/       eğitim, test, kayıt, grafik, rapor
 gui/          arayüz
 configs/      ortak ayarlar (test labirentleri)
-tools/        ajan_dene.py (komut satırı deneme), oyna_terminal.py
+tools/        ajan_dene.py (komut satırı deneme), oyna_terminal.py (labirenti terminalde klavyeyle oyna)
 tests/        otomatik testler
 results/      senin sonuçların
 ```
